@@ -1,15 +1,26 @@
-# 🌧️ NerReksha
-### Offline-First Emergency Coordination Platform
-
-<p align="center">
+<div align="center">
   <video src="./rainroute.mp4" controls autoplay muted loop playsinline width="100%">
     Your browser does not support the video tag.
   </video>
-</p>
 
-<p align="center">
-  <strong>Built for emergencies. Designed for resilience. Powered by the community.</strong>
-</p>
+  <br />
+
+  <h1>🌧️ NerReksha</h1>
+  
+  <h3>Offline-First Emergency Coordination Platform</h3>
+
+  <p>
+    <img src="https://img.shields.io/badge/Status-Active-success.svg" alt="Status Active" />
+    <img src="https://img.shields.io/badge/Offline-100%25-blue.svg" alt="Offline 100%" />
+    <img src="https://img.shields.io/badge/Tech-Vanilla%20JS-F7DF1E.svg" alt="Vanilla JS" />
+    <img src="https://img.shields.io/badge/Mapping-Leaflet-199900.svg" alt="Leaflet JS" />
+    <img src="https://img.shields.io/badge/License-MIT-blue.svg" alt="License MIT" />
+  </p>
+
+  <p>
+    <strong>Built for emergencies. Designed for resilience. Powered by the community.</strong>
+  </p>
+</div>
 
 ---
 
