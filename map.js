@@ -1,5 +1,5 @@
 /**
- * Map initialization and logic for RainRoute
+ * Map initialization and logic for NerReksha
  * using Leaflet.js
  */
 
@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Default location (Idukki / Kuttikkanam fallback)
         let defaultLocation = [9.5804, 76.9734];
         const map = L.map('map-container').setView(defaultLocation, 11);
-        window.rainRouteMap = map;
+        window.nerRekshaMap = map;
         
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
@@ -76,14 +76,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         window.updateSOSStatusMap = async function(id, status) {
-            await RainRouteData.updateSOSStatus(id, status);
-            window.dispatchEvent(new Event('rainroute-data-ready'));
+            await NerRekshaData.updateSOSStatus(id, status);
+            window.dispatchEvent(new Event('nerreksha-data-ready'));
         };
 
         window.removeResourceMap = async function(id) {
             if (confirm('Are you sure you want to remove this resource?')) {
-                await RainRouteData.deleteSafePlace(id);
-                window.dispatchEvent(new Event('rainroute-data-ready'));
+                await NerRekshaData.deleteSafePlace(id);
+                window.dispatchEvent(new Event('nerreksha-data-ready'));
             }
         };
 
@@ -227,9 +227,9 @@ document.addEventListener('DOMContentLoaded', () => {
             markers = [];
             activeHazards = [];
 
-            if (typeof RainRouteData !== 'undefined') {
+            if (typeof NerRekshaData !== 'undefined') {
                 try {
-                    const reports = await RainRouteData.loadReports();
+                    const reports = await NerRekshaData.loadReports();
                     reports.forEach(incident => {
                         // Allow 'all', 'hazard', or the specific incident category
                         if (filterCategory !== 'all' && filterCategory !== 'hazard' && incident.category !== filterCategory) return;
@@ -280,7 +280,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     // Render Community Resources
                     if (['all', 'relief-camp', 'hospital', 'food', 'drinking-water', 'charging', 'toilet', 'volunteer', 'fuel', 'supply', 'other'].includes(filterCategory)) {
-                        const safePlaces = await RainRouteData.loadSafePlaces();
+                        const safePlaces = await NerRekshaData.loadSafePlaces();
                         safePlaces.forEach(place => {
                             if (filterCategory !== 'all' && place.type !== filterCategory) return;
 
@@ -315,7 +315,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     // Render SOS
                     if (filterCategory === 'all' || filterCategory === 'sos') {
-                        const sosList = await RainRouteData.loadSOS();
+                        const sosList = await NerRekshaData.loadSOS();
                         sosList.forEach(sos => {
                             const isResolved = sos.status === 'Resolved';
                             const marker = L.marker([sos.lat, sos.lng], {
@@ -418,7 +418,7 @@ document.addEventListener('DOMContentLoaded', () => {
             renderMarkers('all');
         }
 
-        window.addEventListener('rainroute-data-ready', () => {
+        window.addEventListener('nerreksha-data-ready', () => {
             const activeChip = document.querySelector('.filter-chip.active');
             const activeFilter = activeChip ? activeChip.getAttribute('data-filter') : 'all';
             renderMarkers(activeFilter);

@@ -1,9 +1,9 @@
 /**
- * Offline Data Manager for RainRoute
+ * Offline Data Manager for NerReksha
  * Uses IndexedDB with fallback to LocalStorage
  */
 
-const DB_NAME = 'RainRouteDB';
+const DB_NAME = 'NerRekshaDB';
 const DB_VERSION = 1;
 const STORES = {
     REPORTS: 'reports',
@@ -233,9 +233,9 @@ class OfflineDataManager {
 }
 
 // Instantiate globally
-const RainRouteData = new OfflineDataManager();
+const NerRekshaData = new OfflineDataManager();
 
 // Initialize
-RainRouteData.initPromise.then(() => {
-    window.dispatchEvent(new Event('rainroute-data-ready'));
+NerRekshaData.initPromise.then(() => {
+    window.dispatchEvent(new Event('nerreksha-data-ready'));
 });

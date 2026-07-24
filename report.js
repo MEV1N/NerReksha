@@ -96,8 +96,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (lat === null || lng === null) {
-            if (window.rainRouteMap) {
-                const center = window.rainRouteMap.getCenter();
+            if (window.nerRekshaMap) {
+                const center = window.nerRekshaMap.getCenter();
                 lat = center.lat;
                 lng = center.lng;
             } else {
@@ -127,7 +127,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         try {
-            await RainRouteData.saveReport(reportData);
+            await NerRekshaData.saveReport(reportData);
             
             // Show Feedback based on network status
             feedbackEl.style.display = 'block';
@@ -142,7 +142,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // Trigger Map Update
-            window.dispatchEvent(new Event('rainroute-data-ready'));
+            window.dispatchEvent(new Event('nerreksha-data-ready'));
 
             // Reset form
             document.getElementById('incident-desc').value = '';

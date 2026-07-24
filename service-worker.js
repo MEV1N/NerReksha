@@ -2,7 +2,7 @@
  * Basic Service Worker for caching and offline support
  */
 
-const CACHE_NAME = 'rainroute-v1';
+const CACHE_NAME = 'nerreksha-v1';
 const urlsToCache = [
     './',
     './index.html',

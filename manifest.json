@@ -1,6 +1,6 @@
 {
-    "name": "RainRoute",
-    "short_name": "RainRoute",
+    "name": "NerReksha",
+    "short_name": "NerReksha",
     "description": "Offline-first emergency coordination platform",
     "start_url": "./index.html",
     "display": "standalone",

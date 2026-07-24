@@ -1,5 +1,5 @@
 /**
- * Main application logic for RainRoute
+ * Main application logic for NerReksha
  * Handles UI state and navigation
  */
 
@@ -23,18 +23,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
 
-            if (targetId === 'view-map' && window.rainRouteMap) {
+            if (targetId === 'view-map' && window.nerRekshaMap) {
                 setTimeout(() => {
-                    window.rainRouteMap.invalidateSize();
+                    window.nerRekshaMap.invalidateSize();
                 }, 10);
             }
         });
     });
 
     // Render Community Resources dynamically
-    window.addEventListener('rainroute-data-ready', async () => {
-        if (typeof RainRouteData !== 'undefined') {
-            const safePlaces = await RainRouteData.loadSafePlaces();
+    window.addEventListener('nerreksha-data-ready', async () => {
+        if (typeof NerRekshaData !== 'undefined') {
+            const safePlaces = await NerRekshaData.loadSafePlaces();
             const listContainer = document.querySelector('#view-safe-places .resource-list');
             if (listContainer) {
                 listContainer.innerHTML = '';
@@ -74,8 +74,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     btn.addEventListener('click', async (e) => {
                         const id = e.currentTarget.getAttribute('data-id');
                         if (confirm("Are you sure you want to remove this resource?")) {
-                            await RainRouteData.deleteSafePlace(id);
-                            window.dispatchEvent(new Event('rainroute-data-ready'));
+                            await NerRekshaData.deleteSafePlace(id);
+                            window.dispatchEvent(new Event('nerreksha-data-ready'));
                         }
                     });
                 });
@@ -130,8 +130,8 @@ document.addEventListener('DOMContentLoaded', () => {
             let lng = currentResLng;
             
             if (lat === null || lng === null) {
-                if (window.rainRouteMap) {
-                    const center = window.rainRouteMap.getCenter();
+                if (window.nerRekshaMap) {
+                    const center = window.nerRekshaMap.getCenter();
                     lat = center.lat;
                     lng = center.lng;
                 } else {
@@ -155,8 +155,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 isUserCreated: true
             };
             
-            await RainRouteData.saveSafePlace(newResource);
-            window.dispatchEvent(new Event('rainroute-data-ready'));
+            await NerRekshaData.saveSafePlace(newResource);
+            window.dispatchEvent(new Event('nerreksha-data-ready'));
             
             addResourceForm.reset();
             currentResLat = null;
@@ -170,20 +170,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnLoadDemo = document.getElementById('btn-load-demo');
     if (btnLoadDemo) {
         btnLoadDemo.addEventListener('click', async () => {
-            const existing = await RainRouteData.loadReports();
+            const existing = await NerRekshaData.loadReports();
             if (existing.length > 0) {
                 if (!confirm("Demo data already exists. Replace existing data?")) {
                     return;
                 }
-                await RainRouteData.clearAllData();
+                await NerRekshaData.clearAllData();
             }
             
             btnLoadDemo.innerHTML = 'Loading...';
             
             let centerLat = 9.5804;
             let centerLng = 76.9734;
-            if (window.rainRouteMap) {
-                const c = window.rainRouteMap.getCenter();
+            if (window.nerRekshaMap) {
+                const c = window.nerRekshaMap.getCenter();
                 centerLat = c.lat;
                 centerLng = c.lng;
             }
@@ -239,8 +239,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
             
-            await RainRouteData.saveBulkData(hazards, sosList, resources);
-            window.dispatchEvent(new Event('rainroute-data-ready'));
+            await NerRekshaData.saveBulkData(hazards, sosList, resources);
+            window.dispatchEvent(new Event('nerreksha-data-ready'));
             
             btnLoadDemo.innerHTML = 'Load Demo';
         });
@@ -269,8 +269,8 @@ document.addEventListener('DOMContentLoaded', () => {
             btnSosTrigger.innerHTML = 'Sending...';
             
             let lat = null, lng = null;
-            if (window.rainRouteMap) {
-                const center = window.rainRouteMap.getCenter();
+            if (window.nerRekshaMap) {
+                const center = window.nerRekshaMap.getCenter();
                 lat = center.lat;
                 lng = center.lng;
             }
@@ -300,8 +300,8 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             
             try {
-                await RainRouteData.saveSOS(sosData);
-                window.dispatchEvent(new Event('rainroute-data-ready'));
+                await NerRekshaData.saveSOS(sosData);
+                window.dispatchEvent(new Event('nerreksha-data-ready'));
                 
                 btnSosTrigger.innerHTML = '✅ SOS SENT';
                 btnSosTrigger.style.backgroundColor = 'var(--success-color)';
