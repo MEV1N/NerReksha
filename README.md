@@ -187,21 +187,6 @@ The app launches even without internet.
 
 ---
 
-## IndexedDB Storage
-
-All application data is stored locally using IndexedDB.
-
-Stored information includes:
-
-- Hazard Reports
-- SOS Requests
-- Community Resources
-- User Preferences
-
-This allows the application to continue working even during complete network outages.
-
----
-
 ## GPS Without Internet
 
 GPS continues working even when mobile data is unavailable.
@@ -221,25 +206,15 @@ NerReksha uses GPS for:
 
 ```
 Open App
-
 ↓
-
 Report
-
 ↓
-
 Select Hazard
-
 ↓
-
 Submit
-
 ↓
-
 Stored Locally
-
 ↓
-
 Displayed on Map
 ```
 
@@ -249,25 +224,15 @@ Displayed on Map
 
 ```
 Open App
-
 ↓
-
 SOS
-
 ↓
-
 Enter Details
-
 ↓
-
 Submit
-
 ↓
-
 SOS Appears On Map
-
 ↓
-
 Responder Updates Status
 ```
 
@@ -277,21 +242,11 @@ Responder Updates Status
 
 ```
 Community Resources
-
 ↓
-
-+
-
-↓
-
 Enter Details
-
 ↓
-
 Save
-
 ↓
-
 Displayed On Map
 ```
 
@@ -368,57 +323,7 @@ This makes emergency information:
 
 ---
 
-# 📂 Project Structure
-
-```
-NerReksha
-│
-├── index.html
-├── manifest.json
-├── service-worker.js
-├── rainroute.mp4
-├── assets/
-├── css/
-├── js/
-│   ├── app.js
-│   ├── map.js
-│   ├── report.js
-│   ├── sos.js
-│   ├── resources.js
-│   ├── storage.js
-│   └── routing.js
-└── README.md
-```
-
----
-
-# 🚀 Getting Started
-
-Clone the repository
-
-```bash
-git clone https://github.com/yourusername/NerReksha.git
-```
-
-Navigate into the project
-
-```bash
-cd NerReksha
-```
-
-Run using a local web server
-
-```bash
-# VS Code Live Server
-```
-
-or
-
-```bash
-python -m http.server
-```
-
-Open the application in your browser and install it as a Progressive Web App for the best experience.
+Access the website through https://mev1n.github.io/NerReksha/>
 
 ---
 
