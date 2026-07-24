@@ -1,7 +1,6 @@
-<div align="center">
-  <video src="./rainroute.mp4" controls autoplay muted loop playsinline width="100%">
-    Your browser does not support the video tag.
-  </video>
+<p align="center">
+  <img src="RainRoute.gif" width="100%">
+</p>
 
   <br />
 
@@ -441,15 +440,3 @@ Open the application in your browser and install it as a Progressive Web App for
 > **When infrastructure fails, communities should still be able to help each other.**
 
 NerReksha combines offline resilience, crowdsourced information, and a simple mobile-first experience to help people stay informed, connected, and safe during emergencies.
-
----
-
-## 📄 License
-
-This project is licensed under the **MIT License**.
-
----
-
-<p align="center">
-Made with ❤️ for disaster resilience and community safety.
-</p>
