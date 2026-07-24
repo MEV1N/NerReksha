@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>RainRoute - Emergency Coordination</title>
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#d32f2f">
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+    <header class="app-header" style="display: flex; justify-content: space-between; align-items: center; padding: 0 16px;">
+        <h1 style="margin: 0; font-size: 24px;">RainRoute</h1>
+        <div style="display: flex; gap: 8px; align-items: center;">
+            <button id="btn-load-demo" style="background: var(--warning-color); color: #000; border: none; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 12px; cursor: pointer;">Load Demo</button>
+            <div id="status-indicator" class="status online" style="margin: 0;">Online</div>
+        </div>
+    </header>
+
+    <main id="main-content">
+        <!-- Map View (Default) -->
+        <section id="view-map" class="view active">
+            <div class="search-overlay">
+                <input type="text" id="map-search-input" placeholder="Search location or safe space..." />
+                <button id="map-search-btn">🔍</button>
+            </div>
+            <div class="map-filters" style="overflow-x: auto; white-space: nowrap;">
+                <button class="filter-chip active" data-filter="all">All</button>
+                <button class="filter-chip" data-filter="sos">🚨 SOS</button>
+                <button class="filter-chip" data-filter="hazard">🌊 Hazards</button>
+                <button class="filter-chip" data-filter="hospital">🏥 Hospitals</button>
+                <button class="filter-chip" data-filter="relief-camp">⛺ Camps</button>
+                <button class="filter-chip" data-filter="food">🍲 Food</button>
+                <button class="filter-chip" data-filter="drinking-water">💧 Water</button>
+                <button class="filter-chip" data-filter="charging">🔋 Power</button>
+            </div>
+            <div id="map-container"></div>
+        </section>
+
+        <!-- SOS View -->
+        <section id="view-sos" class="view">
+            <div class="content-container">
+                <h2 style="color: var(--danger-color);">Emergency SOS</h2>
+                <p>Broadcast your location to nearby rescuers offline.</p>
+                
+                <form id="sos-form" style="margin-top: 16px;">
+                    <div class="form-group">
+                        <label class="form-label">Emergency Type</label>
+                        <select id="sos-type" class="form-control" required>
+                            <option value="Medical">Medical Emergency</option>
+                            <option value="Trapped">Trapped / Needs Rescue</option>
+                            <option value="Evacuation">Needs Evacuation</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group" style="margin-top: 16px;">
+                        <label class="form-label">People Count</label>
+                        <input type="number" id="sos-people" class="form-control" value="1" min="1" required />
+                    </div>
+
+                    <div class="form-group" style="margin-top: 16px;">
+                        <label class="form-label">Contact Number (Optional)</label>
+                        <input type="tel" id="sos-contact" class="form-control" placeholder="Phone number" />
+                    </div>
+
+                    <div class="form-group" style="margin-top: 16px; margin-bottom: 24px;">
+                        <label class="form-label">Description (Optional)</label>
+                        <textarea id="sos-desc" class="form-control" rows="2" placeholder="Describe the situation..."></textarea>
+                    </div>
+
+                    <button type="button" class="btn-large btn-danger" id="btn-trigger-sos" style="width: 100%; box-shadow: 0 4px 12px rgba(244,67,54,0.5);">BROADCAST SOS NOW</button>
+                </form>
+            </div>
+        </section>
+
+        <!-- Report View -->
+        <section id="view-report" class="view">
+            <div class="content-container">
+                <h2>Report Incident</h2>
+                <div id="report-feedback" style="display:none; padding:16px; margin-bottom:16px; border-radius:8px; font-weight:bold; text-align:center;"></div>
+                <form id="report-form">
+                    <label class="form-label">Type of Incident</label>
+                    <div class="category-grid">
+                        <button type="button" class="category-btn active" data-val="flood">🌊 Flood</button>
+                        <button type="button" class="category-btn" data-val="landslide">⛰️ Landslide</button>
+                        <button type="button" class="category-btn" data-val="tree-fallen">🌳 Tree</button>
+                        <button type="button" class="category-btn" data-val="road-blocked">🚧 Road Blocked</button>
+                        <button type="button" class="category-btn" data-val="bridge-damaged">🌉 Bridge Damaged</button>
+                        <button type="button" class="category-btn" data-val="other">❓ Other</button>
+                    </div>
+                    
+                    <div class="form-group" style="margin-top: 16px;">
+                        <label for="incident-severity" class="form-label">Severity Level</label>
+                        <select id="incident-severity" class="form-control">
+                            <option value="1">1 - Low</option>
+                            <option value="2">2 - Moderate</option>
+                            <option value="3" selected>3 - High</option>
+                            <option value="4">4 - Severe</option>
+                            <option value="5">5 - Critical</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group" style="margin-top: 16px;">
+                        <label for="incident-location" class="form-label">Location</label>
+                        <div style="display: flex; gap: 8px;">
+                            <input type="text" id="incident-location" class="form-control" placeholder="Where did this occur?" style="flex: 1;" required />
+                            <button type="button" id="btn-use-gps" class="btn-secondary" style="padding: 0 12px; font-size: 14px; white-space: nowrap;">📍 Use GPS</button>
+                        </div>
+                    </div>
+
+                    <div class="location-status" id="report-location-status" style="margin-bottom: 16px; font-size: 14px; color: var(--gray-color); display: none;">
+                        📍 Locating...
+                    </div>
+
+                    <div class="form-group" style="margin-top: 16px;">
+                        <label for="incident-desc" class="form-label">Description (Optional)</label>
+                        <textarea id="incident-desc" class="form-control" rows="3" placeholder="Additional details..."></textarea>
+                    </div>
+
+                    <button type="submit" class="btn-large btn-primary" id="btn-submit-report">Submit Report</button>
+                </form>
+            </div>
+        </section>
+
+        <!-- Community Resources View -->
+        <section id="view-safe-places" class="view">
+            <div class="content-container" style="padding-bottom: 80px;">
+                <h2>Community Resources</h2>
+                <p style="color: var(--gray-color); margin-bottom: 16px; font-size: 14px;">Available shelters, camps, and supplies.</p>
+                <ul class="resource-list">
+                    <!-- Dynamically populated -->
+                </ul>
+            </div>
+            
+            <!-- Floating Action Button -->
+            <button id="btn-add-resource-fab" style="position: fixed; bottom: 80px; right: 24px; width: 56px; height: 56px; border-radius: 50%; background: var(--primary-color); color: white; border: none; font-size: 28px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); cursor: pointer; z-index: 1000; display: flex; align-items: center; justify-content: center;">+</button>
+        </section>
+
+        <!-- Add Resource Modal -->
+        <section id="view-add-resource" class="view" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #fff; z-index: 2000; display: none; overflow-y: auto;">
+            <div class="content-container">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                    <h2 style="margin: 0;">Add Resource</h2>
+                    <button id="btn-close-add-resource" style="background: none; border: none; font-size: 24px; cursor: pointer;">✕</button>
+                </div>
+                <form id="add-resource-form">
+                    <div class="form-group" style="margin-top: 16px;">
+                        <label class="form-label">Resource Name</label>
+                        <input type="text" id="res-name" class="form-control" placeholder="E.g. Govt Primary School Camp" required />
+                    </div>
+                    
+                    <div class="form-group" style="margin-top: 16px;">
+                        <label class="form-label">Resource Type</label>
+                        <select id="res-type" class="form-control" required>
+                            <option value="relief-camp">🏠 Relief Camp</option>
+                            <option value="hospital">🏥 Medical Camp / Hospital</option>
+                            <option value="food">🍱 Food Distribution</option>
+                            <option value="drinking-water">💧 Drinking Water</option>
+                            <option value="charging">🔋 Charging Station</option>
+                            <option value="toilet">🚻 Public Toilet</option>
+                            <option value="volunteer">🚜 Volunteer Resource</option>
+                            <option value="fuel">⛽ Fuel</option>
+                            <option value="supply">📦 Supply Distribution</option>
+                            <option value="other">📍 Other</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group" style="margin-top: 16px;">
+                        <label class="form-label">Location</label>
+                        <div style="display: flex; gap: 8px;">
+                            <input type="text" id="res-location" class="form-control" placeholder="Enter location name" style="flex: 1;" required />
+                            <button type="button" id="btn-res-gps" class="btn-secondary" style="padding: 0 12px; font-size: 14px; white-space: nowrap;">📍 Use GPS</button>
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="margin-top: 16px;">
+                        <label class="form-label">Capacity (Optional)</label>
+                        <input type="number" id="res-capacity" class="form-control" placeholder="E.g. 200" />
+                    </div>
+                    
+                    <div class="form-group" style="margin-top: 16px;">
+                        <label class="form-label">Contact (Optional)</label>
+                        <input type="tel" id="res-contact" class="form-control" placeholder="Phone number" />
+                    </div>
+
+                    <div class="form-group" style="margin-top: 16px;">
+                        <label class="form-label">Facilities Available</label>
+                        <div style="display: flex; gap: 16px; margin-top: 8px;">
+                            <label><input type="checkbox" id="res-fac-food"> Food</label>
+                            <label><input type="checkbox" id="res-fac-water"> Water</label>
+                            <label><input type="checkbox" id="res-fac-power"> Power</label>
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="margin-top: 16px;">
+                        <label class="form-label">Description (Optional)</label>
+                        <textarea id="res-desc" class="form-control" rows="2" placeholder="Any additional info..."></textarea>
+                    </div>
+
+                    <button type="submit" class="btn-large btn-primary" style="margin-top: 24px; width: 100%;">Add Resource</button>
+                </form>
+            </div>
+        </section>
+    </main>
+
+    <nav class="bottom-nav">
+        <button class="nav-item active" data-target="view-map">
+            <span class="nav-icon">🗺</span>
+            <span class="nav-label">Map</span>
+        </button>
+        <button class="nav-item" data-target="view-sos">
+            <span class="nav-icon">🚨</span>
+            <span class="nav-label">SOS</span>
+        </button>
+        <button class="nav-item" data-target="view-report">
+            <span class="nav-icon">➕</span>
+            <span class="nav-label">Report</span>
+        </button>
+        <button class="nav-item" data-target="view-safe-places">
+            <span class="nav-icon">🏠</span>
+            <span class="nav-label">Resources</span>
+        </button>
+    </nav>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+    
+    <!-- Application Scripts -->
+    <script src="./data.js"></script>
+    <script src="./offline.js"></script>
+    <script src="./map.js"></script>
+    <script src="./report.js"></script>
+    <script src="./app.js"></script>
+</body>
+</html>
