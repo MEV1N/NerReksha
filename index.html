@@ -7,49 +7,77 @@
     
     <!-- PWA Manifest -->
     <link rel="manifest" href="./manifest.json">
-    <meta name="theme-color" content="#d32f2f">
+    <meta name="theme-color" content="#0f172a">
     
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
     
     <!-- Custom CSS -->
     <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-    <header class="app-header" style="display: flex; justify-content: space-between; align-items: center; padding: 0 16px;">
-        <h1 style="margin: 0; font-size: 24px;">NerReksha</h1>
-        <div style="display: flex; gap: 8px; align-items: center;">
-            <button id="btn-load-demo" style="background: var(--warning-color); color: #000; border: none; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 12px; cursor: pointer;">Load Demo</button>
-            <div id="status-indicator" class="status online" style="margin: 0;">Online</div>
+    <header class="app-header">
+        <h1>NerReksha</h1>
+        <div style="display:flex; gap:8px; align-items:center;">
+            <button id="btn-manage-region">🗺️ Offline</button>
+            <button id="btn-load-demo">Demo</button>
+            <div id="status-indicator" class="status online">Online</div>
         </div>
     </header>
 
     <main id="main-content">
-        <!-- Map View (Default) -->
+        <!-- Map View -->
         <section id="view-map" class="view active">
+            <!-- Search -->
             <div class="search-overlay">
-                <input type="text" id="map-search-input" placeholder="Search location or safe space..." />
+                <input type="text" id="map-search-input" placeholder="Search any place or address..." autocomplete="off" />
                 <button id="map-search-btn">🔍</button>
             </div>
-            <div class="map-filters" style="overflow-x: auto; white-space: nowrap;">
+            <!-- Search Results -->
+            <div id="search-results-container" style="display:none; position:absolute; top:62px; left:16px; right:16px; z-index:1001; max-height:240px; overflow-y:auto;">
+                <ul id="search-results-list" style="list-style:none; padding:0; margin:0;"></ul>
+            </div>
+
+            <!-- Filter Chips -->
+            <div class="map-filters">
                 <button class="filter-chip active" data-filter="all">All</button>
                 <button class="filter-chip" data-filter="sos">🚨 SOS</button>
                 <button class="filter-chip" data-filter="hazard">🌊 Hazards</button>
-                <button class="filter-chip" data-filter="hospital">🏥 Hospitals</button>
+                <button class="filter-chip" data-filter="hospital">🏥 Medical</button>
                 <button class="filter-chip" data-filter="relief-camp">⛺ Camps</button>
                 <button class="filter-chip" data-filter="food">🍲 Food</button>
                 <button class="filter-chip" data-filter="drinking-water">💧 Water</button>
                 <button class="filter-chip" data-filter="charging">🔋 Power</button>
             </div>
+            <!-- Route Info Panel -->
+            <div id="route-controls" style="display:none; position:absolute; bottom:16px; left:16px; right:80px; z-index:999;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                    <h3 id="route-dest-name">Lowest-Risk Route</h3>
+                    <button id="btn-cancel-route" style="background:none; border:none; font-size:16px; cursor:pointer;">✕</button>
+                </div>
+                <div id="route-stats" style="font-size:14px;">
+                    <span id="route-dist">--</span> km • <span id="route-time">--</span> min
+                    <div id="route-safety" style="margin-top:4px; font-weight:600;">Safety Score: --/100</div>
+                    <div id="route-warnings" style="margin-top:4px;"></div>
+                </div>
+            </div>
+
+            <!-- FABs -->
+            <button id="btn-nearest-help">🆘 Nearest Help</button>
+            <button id="btn-locate-me">📍</button>
+
             <div id="map-container"></div>
         </section>
 
         <!-- SOS View -->
         <section id="view-sos" class="view">
             <div class="content-container">
-                <h2 style="color: var(--danger-color);">Emergency SOS</h2>
-                <p>Broadcast your location to nearby rescuers offline.</p>
+                <h2>🚨 Emergency SOS</h2>
+                <p class="page-subtitle">Broadcast your location to nearby rescuers — works offline.</p>
                 
                 <form id="sos-form" style="margin-top: 16px;">
                     <div class="form-group">
@@ -85,7 +113,8 @@
         <!-- Report View -->
         <section id="view-report" class="view">
             <div class="content-container">
-                <h2>Report Incident</h2>
+                <h2>⚠️ Report Incident</h2>
+                <p class="page-subtitle">Help others by reporting hazards around you.</p>
                 <div id="report-feedback" style="display:none; padding:16px; margin-bottom:16px; border-radius:8px; font-weight:bold; text-align:center;"></div>
                 <form id="report-form">
                     <label class="form-label">Type of Incident</label>
@@ -131,11 +160,11 @@
             </div>
         </section>
 
-        <!-- Community Resources View -->
+        <!-- Community Resources -->
         <section id="view-safe-places" class="view">
-            <div class="content-container" style="padding-bottom: 80px;">
-                <h2>Community Resources</h2>
-                <p style="color: var(--gray-color); margin-bottom: 16px; font-size: 14px;">Available shelters, camps, and supplies.</p>
+            <div class="content-container" style="padding-bottom:80px;">
+                <h2>🏠 Community Resources</h2>
+                <p class="page-subtitle">Available shelters, camps, and supplies.</p>
                 <ul class="resource-list">
                     <!-- Dynamically populated -->
                 </ul>
@@ -146,11 +175,11 @@
         </section>
 
         <!-- Add Resource Modal -->
-        <section id="view-add-resource" class="view" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #fff; z-index: 2000; display: none; overflow-y: auto;">
+        <section id="view-add-resource" class="view" style="position:absolute; top:0; left:0; width:100%; height:100%; background:#fff; z-index:2000; display:none; overflow-y:auto;">
             <div class="content-container">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                    <h2 style="margin: 0;">Add Resource</h2>
-                    <button id="btn-close-add-resource" style="background: none; border: none; font-size: 24px; cursor: pointer;">✕</button>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                    <h2 style="margin:0;">Add Resource</h2>
+                    <button id="btn-close-add-resource" style="background:none; border:none; font-size:22px; cursor:pointer; color:var(--text-muted);">✕</button>
                 </div>
                 <form id="add-resource-form">
                     <div class="form-group" style="margin-top: 16px;">
@@ -210,6 +239,41 @@
                 </form>
             </div>
         </section>
+
+        <!-- Offline Region Manager -->
+        <section id="view-region-manager" class="view" style="position:absolute; top:0; left:0; width:100%; height:100%; background:#fff; z-index:2000; display:none; overflow-y:auto;">
+            <div class="content-container">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                    <h2 style="margin:0;">Offline Region</h2>
+                    <button id="btn-close-region" style="background:none; border:none; font-size:22px; cursor:pointer; color:var(--text-muted);">✕</button>
+                </div>
+                
+                <div id="region-status">
+                    <!-- Status injected via JS -->
+                </div>
+
+                <div style="margin-top: 24px;">
+                    <h3>Available Regions</h3>
+                    <p style="font-size: 14px; color: var(--gray-color);">Download geographic data to enable offline search and routing.</p>
+                    <button id="btn-download-mock-region" class="btn-secondary" style="width: 100%; margin-top: 8px;">Download Mock Region Data</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Route Feedback Modal -->
+        <section id="view-route-feedback" class="view" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 3000; display: none; align-items: center; justify-content: center;">
+            <div style="background: white; padding: 24px; border-radius: 8px; width: 90%; max-width: 400px; text-align: center; box-shadow: 0 4px 24px rgba(0,0,0,0.3);">
+                <h3 style="margin-top: 0;">How was this route?</h3>
+                <p style="font-size: 14px; color: var(--gray-color); margin-bottom: 24px;">Your feedback helps improve our community routing model.</p>
+                
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                    <button class="btn-feedback" data-feedback="passable" style="background: var(--success-color); color: white; padding: 12px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">✅ Road was Passable</button>
+                    <button class="btn-feedback" data-feedback="partially-blocked" style="background: var(--warning-color); color: black; padding: 12px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">⚠ Partially Blocked</button>
+                    <button class="btn-feedback" data-feedback="inaccessible" style="background: var(--danger-color); color: white; padding: 12px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">⛔ Inaccessible / Dangerous</button>
+                    <button id="btn-skip-feedback" style="background: none; border: none; margin-top: 12px; color: var(--gray-color); cursor: pointer; text-decoration: underline;">Skip</button>
+                </div>
+            </div>
+        </section>
     </main>
 
     <nav class="bottom-nav">
@@ -236,7 +300,24 @@
     <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
     
     <!-- Application Scripts -->
+    <script src="./geo/distance.js"></script>
+    <script src="./geo/spatial-index.js"></script>
+    <script src="./geo/graph.js"></script>
+
+    <!-- Machine Learning Routing Layer -->
+    <script src="./ml/features.js"></script>
+    <script src="./ml/model.js"></script>
+    <script src="./ml/fallback-model.js"></script>
+    <script src="./ml/risk-predictor.js"></script>
+
+    <script src="./geo/astar.js"></script>
+    
     <script src="./data.js"></script>
+    <script src="./gps.js"></script>
+    <script src="./search.js"></script>
+    <script src="./routing.js"></script>
+    <script src="./offline-map.js"></script>
+    <script src="./offline-region.js"></script>
     <script src="./offline.js"></script>
     <script src="./map.js"></script>
     <script src="./report.js"></script>

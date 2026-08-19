@@ -12,10 +12,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const map = L.map('map-container').setView(defaultLocation, 11);
         window.nerRekshaMap = map;
         
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
-            attribution: '© OpenStreetMap'
-        }).addTo(map);
+        // Use Offline Map strategy
+        window.OfflineMap.init(map, defaultLocation);
 
         // Marker Icons Configuration
         const iconConfig = {
@@ -93,134 +91,134 @@ document.addEventListener('DOMContentLoaded', () => {
         let userMarker = null;
         let userLocation = defaultLocation;
 
-        function isRouteSafe(coordinates) {
-            for (let i = 0; i < coordinates.length; i++) {
-                const point = L.latLng(coordinates[i][1], coordinates[i][0]); // OSRM is [lng, lat]
-                for (let j = 0; j < activeHazards.length; j++) {
-                    const hazardCenter = L.latLng(activeHazards[j].lat, activeHazards[j].lng);
-                    if (point.distanceTo(hazardCenter) <= activeHazards[j].radius) {
-                        return { safe: false, hazard: activeHazards[j] };
-                    }
-                }
-            }
-            return { safe: true };
-        }
+        // Current Route State
+        let currentRouteDest = null;
 
         window.routeTo = async function(lat, lng) {
+            currentRouteDest = [lat, lng];
+            
             // Remove old routes
             routingLines.forEach(l => map.removeLayer(l));
             routingLines = [];
             
-            if (!userLocation) return alert("User location not available yet.");
-
-            if (!navigator.onLine) {
-                alert("You are offline. Showing direct path. Proceed with caution.");
-                const routeLine = L.polyline([userLocation, [lat, lng]], {color: '#1976D2', weight: 6, opacity: 0.8, dashArray: '10, 10'}).addTo(map);
-                routingLines.push(routeLine);
-                map.fitBounds(routeLine.getBounds());
+            if (!userLocation) {
+                alert("User location not available yet.");
                 return;
             }
 
             try {
-                // Fetch primary and up to 3 alternative routes
-                const url = `https://router.project-osrm.org/route/v1/driving/${userLocation[1]},${userLocation[0]};${lng},${lat}?overview=full&geometries=geojson&alternatives=3`;
-                const response = await fetch(url);
-                const data = await response.json();
-
-                if (!data.routes || data.routes.length === 0) {
-                    alert("Routing server returned no routes.");
-                    return;
-                }
-
-                let safeRoute = null;
-                let isAlternative = false;
-                let hitHazard = null;
-
-                // 1. Evaluate default routes
-                for (let i = 0; i < data.routes.length; i++) {
-                    const route = data.routes[i];
-                    const safetyCheck = isRouteSafe(route.geometry.coordinates);
-                    if (safetyCheck.safe) {
-                        safeRoute = route;
-                        isAlternative = (i > 0);
-                        break;
-                    } else if (!hitHazard) {
-                        hitHazard = safetyCheck.hazard; // track the first hazard we hit for a detour attempt
-                    }
-                }
-
-                // 2. Detour Attempt if all defaults fail
-                if (!safeRoute && hitHazard) {
-                    // Heuristic detour: attempt to route via a point outside the hazard radius
-                    // We offset the longitude by approx (radius * 1.5) in degrees
-                    const offsetDeg = (hitHazard.radius * 1.5) / 111320; 
-                    const detourLng = hitHazard.lng + offsetDeg;
-                    
-                    const detourUrl = `https://router.project-osrm.org/route/v1/driving/${userLocation[1]},${userLocation[0]};${detourLng},${hitHazard.lat};${lng},${lat}?overview=full&geometries=geojson`;
-                    const detourRes = await fetch(detourUrl);
-                    const detourData = await detourRes.json();
-                    
-                    if (detourData.routes && detourData.routes.length > 0) {
-                        const safetyCheck = isRouteSafe(detourData.routes[0].geometry.coordinates);
-                        if (safetyCheck.safe) {
-                            safeRoute = detourData.routes[0];
-                            isAlternative = true;
-                        }
-                    }
-                }
-
-                // 3. Render or Fail
-                if (safeRoute) {
-                    // Convert [lng, lat] to [lat, lng] for Leaflet polyline
-                    const latLngs = safeRoute.geometry.coordinates.map(coord => [coord[1], coord[0]]);
-                    const routeLine = L.polyline(latLngs, {color: '#1976D2', weight: 6, opacity: 0.9}).addTo(map);
+                const routeData = await window.Routing.calculateRoute(userLocation, [lat, lng], activeHazards);
+                
+                if (routeData) {
+                    const latLngs = routeData.geometry;
+                    const routeLine = L.polyline(latLngs, {
+                        color: '#4CAF50', // Always green for safety
+                        weight: 6, 
+                        opacity: 0.9,
+                        dashArray: routeData.source === 'offline' ? '10, 10' : null
+                    }).addTo(map);
                     routingLines.push(routeLine);
-                    map.fitBounds(routeLine.getBounds());
+                    map.fitBounds(routeLine.getBounds(), { padding: [50, 50] });
 
-                    if (isAlternative) {
-                        alert("Safer alternative route selected to avoid reported hazards.");
-                    }
-                } else {
-                    alert("No safe route currently available.");
+                    // Update UI
+                    document.getElementById('route-controls').style.display = 'block';
+                    document.getElementById('route-dist').textContent = (routeData.distance / 1000).toFixed(1) + ' km';
+                    document.getElementById('route-time').textContent = Math.round(routeData.duration / 60) + ' min';
+                    
+                    const safetyEl = document.getElementById('route-safety');
+                    safetyEl.textContent = `Safety Score: ${routeData.safetyScore ? routeData.safetyScore.toFixed(0) : 100}/100`;
+                    safetyEl.style.color = routeData.safetyScore > 80 ? 'var(--success-color)' : (routeData.safetyScore > 50 ? 'var(--warning-color)' : 'var(--danger-color)');
+
+                    const warningsEl = document.getElementById('route-warnings');
+                    warningsEl.innerHTML = `
+                        <div style="color: #666; margin-bottom: 4px;">Lowest-risk route based on available data. Actual conditions may differ.</div>
+                        ${routeData.maxRisk > 0.5 ? '<div style="color: var(--warning-color);">⚠ Route contains potentially risky segments.</div>' : ''}
+                    `;
                 }
-
             } catch (err) {
                 console.error("Routing error:", err);
-                alert("Routing failed. Please check your connection.");
+                alert(err.message || "Routing failed.");
             }
         };
 
-        // Search Bar Logic
+        // Route Controls UI
+        const btnCancelRoute = document.getElementById('btn-cancel-route');
+        if (btnCancelRoute) {
+            btnCancelRoute.addEventListener('click', () => {
+                routingLines.forEach(l => map.removeLayer(l));
+                routingLines = [];
+                
+                // Prompt for feedback
+                if (currentRouteDest) {
+                    window.showRouteFeedbackPrompt(currentRouteDest);
+                }
+                
+                currentRouteDest = null;
+                document.getElementById('route-controls').style.display = 'none';
+            });
+        }
+
+        // Search Bar Logic (Offline First)
         const searchInput = document.getElementById('map-search-input');
         const searchBtn = document.getElementById('map-search-btn');
+        const searchResultsContainer = document.getElementById('search-results-container');
+        const searchResultsList = document.getElementById('search-results-list');
+
+        function performSearch() {
+            const query = searchInput.value;
+            if (!query) {
+                searchResultsContainer.style.display = 'none';
+                return;
+            }
+
+            const results = window.OfflineSearch.searchPlaces(query, userLocation ? {lat: userLocation[0], lon: userLocation[1]} : null);
+            
+            searchResultsList.innerHTML = '';
+            if (results.length === 0) {
+                searchResultsList.innerHTML = '<li style="padding: 12px; color: var(--gray-color);">No offline places found.</li>';
+            } else {
+                // Show top 5
+                results.slice(0, 5).forEach(res => {
+                    const li = document.createElement('li');
+                    li.style.padding = '12px';
+                    li.style.borderBottom = '1px solid #eee';
+                    li.style.cursor = 'pointer';
+                    
+                    const distStr = res.distance !== null ? ` • ${(res.distance/1000).toFixed(1)} km` : '';
+                    
+                    li.innerHTML = `
+                        <strong>${res.place.name}</strong>
+                        <div style="font-size: 12px; color: var(--gray-color);">${(res.place.type || 'place').toUpperCase()}${distStr}</div>
+                    `;
+                    
+                    li.addEventListener('click', () => {
+                        searchResultsContainer.style.display = 'none';
+                        map.setView([res.place.lat, res.place.lon], 15);
+                        window.routeTo(res.place.lat, res.place.lon);
+                        searchInput.value = res.place.name;
+                    });
+                    
+                    searchResultsList.appendChild(li);
+                });
+            }
+            searchResultsContainer.style.display = 'block';
+        }
 
         if (searchBtn && searchInput) {
-            searchBtn.addEventListener('click', async () => {
-                const query = searchInput.value;
-                if (!query) return;
-
-                if (navigator.onLine) {
-                    try {
-                        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
-                        const data = await response.json();
-                        if (data && data.length > 0) {
-                            const lat = parseFloat(data[0].lat);
-                            const lon = parseFloat(data[0].lon);
-                            
-                            map.setView([lat, lon], 14);
-                            window.routeTo(lat, lon);
-                        } else {
-                            alert("Location not found.");
-                        }
-                    } catch (e) {
-                        console.error("Search failed", e);
-                        alert("Search failed. Check connection.");
-                    }
+            searchBtn.addEventListener('click', performSearch);
+            searchInput.addEventListener('input', () => {
+                if (searchInput.value.length > 2) {
+                    performSearch();
                 } else {
-                    alert("Cannot search external locations while offline.");
+                    searchResultsContainer.style.display = 'none';
                 }
             });
         }
+        
+        // Hide search results on map click
+        map.on('click', () => {
+            if (searchResultsContainer) searchResultsContainer.style.display = 'none';
+        });
 
         async function renderMarkers(filterCategory = 'all') {
             markers.forEach(m => map.removeLayer(m));
@@ -385,37 +383,42 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
 
-        // Get User Location
-        if ('geolocation' in navigator) {
-            map.locate({setView: false, maxZoom: 13, enableHighAccuracy: navigator.onLine});
+        // GPS integration via our new GPS module
+        window.GPS.init();
+        window.GPS.subscribe((pos) => {
+            if (!pos) return;
+            userLocation = [pos.lat, pos.lon];
+            
+            if (userMarker) {
+                map.removeLayer(userMarker);
+            }
+            
+            userMarker = L.marker([pos.lat, pos.lon], {
+                icon: createCustomIcon('user'),
+                zIndexOffset: 1000
+            }).addTo(map)
+            .bindPopup('<div class="popup-content"><h3>You are here</h3></div>');
 
-            map.on('locationfound', function(e) {
-                userLocation = [e.latlng.lat, e.latlng.lng];
-                
-                if (userMarker) {
-                    map.removeLayer(userMarker);
+            // Optionally pan to user on first fix if not done yet
+            if (!this._hasPannedToUser) {
+                if (pos.lat > 8 && pos.lat < 13 && pos.lon > 74 && pos.lon < 78) {
+                    map.setView([pos.lat, pos.lon], 14);
                 }
-                
-                userMarker = L.marker(e.latlng, {
-                    icon: createCustomIcon('user'),
-                    zIndexOffset: 1000
-                }).addTo(map)
-                .bindPopup('<div class="popup-content"><h3>You are here</h3></div>').openPopup();
-
-                renderMarkers('all');
-                
-                // Only pan to user if they are roughly in Kerala bounds
-                if (e.latlng.lat > 8 && e.latlng.lat < 13 && e.latlng.lng > 74 && e.latlng.lng < 78) {
-                    map.setView(e.latlng, 13);
+                this._hasPannedToUser = true;
+                renderMarkers('all'); // Re-render to sort/calculate relative things if needed
+            }
+        });
+        
+        const btnLocateMe = document.getElementById('btn-locate-me');
+        if (btnLocateMe) {
+            btnLocateMe.addEventListener('click', async () => {
+                try {
+                    const pos = await window.GPS.getPosition(true);
+                    map.setView([pos.lat, pos.lon], 15);
+                } catch (e) {
+                    alert("Could not get your location. Please check permissions.");
                 }
             });
-
-            map.on('locationerror', function(e) {
-                console.log("Location access denied or unavailable.");
-                renderMarkers('all');
-            });
-        } else {
-            renderMarkers('all');
         }
 
         window.addEventListener('nerreksha-data-ready', () => {

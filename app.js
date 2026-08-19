@@ -80,8 +80,92 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                 });
             }
+            
+            // Initialize Search and Routing engines
+            if (typeof window.OfflineSearch !== 'undefined') {
+                await window.OfflineSearch.init();
+            }
+            if (typeof window.Routing !== 'undefined') {
+                await window.Routing.init();
+            }
         }
     });
+
+    // Find Nearest Safe Help Feature
+    const btnNearestHelp = document.getElementById('btn-nearest-help');
+    if (btnNearestHelp) {
+        btnNearestHelp.addEventListener('click', async () => {
+            if (!window.GPS || !window.GPS.currentPosition) {
+                alert("Cannot determine your location. Please ensure GPS is enabled.");
+                return;
+            }
+
+            const origin = [window.GPS.currentPosition.lat, window.GPS.currentPosition.lon];
+            btnNearestHelp.innerHTML = 'Searching...';
+            btnNearestHelp.disabled = true;
+
+            try {
+                const safePlaces = await NerRekshaData.loadSafePlaces();
+                const activeHazards = await NerRekshaData.loadReports(); // Filter if needed
+
+                if (safePlaces.length === 0) {
+                    alert("No community resources/safe facilities found in database.");
+                    return;
+                }
+
+                // Filter out non-emergency places and prioritize
+                const candidates = safePlaces.filter(p => 
+                    ['relief-camp', 'hospital', 'food-centre', 'drinking-water'].includes(p.type)
+                );
+                
+                if (candidates.length === 0) {
+                    alert("No critical emergency facilities found.");
+                    return;
+                }
+
+                const results = [];
+                for (const place of candidates) {
+                    try {
+                        const route = await window.Routing.calculateRoute(origin, [place.lat, place.lng], 'SAFEST', activeHazards);
+                        if (route && route.safetyScore > 50) { // Must be somewhat safe
+                            results.push({ place, route });
+                        }
+                    } catch (e) {
+                        // Ignore if no route found for this specific place
+                    }
+                }
+
+                if (results.length === 0) {
+                    alert("Could not find a SAFE route to any nearby facility.");
+                    return;
+                }
+
+                // Sort by a combination of safety and duration
+                results.sort((a, b) => {
+                    const costA = a.route.duration + (100 - a.route.safetyScore) * 60; // 1 penalty point = 1 min
+                    const costB = b.route.duration + (100 - b.route.safetyScore) * 60;
+                    return costA - costB;
+                });
+
+                const best = results[0];
+                
+                // Show route to best
+                if (window.nerRekshaMap && window.routeTo) {
+                    window.routeTo(best.place.lat, best.place.lng);
+                    
+                    const msg = `Found nearest safe help:\n\n${best.place.title}\n${(best.route.distance/1000).toFixed(1)} km away\nEst. ${Math.round(best.route.duration/60)} min\nSafety Score: ${best.route.safetyScore}/100`;
+                    alert(msg);
+                }
+
+            } catch(e) {
+                console.error(e);
+                alert("An error occurred while finding nearest safe help.");
+            } finally {
+                btnNearestHelp.innerHTML = '🆘 Nearest Safe Help';
+                btnNearestHelp.disabled = false;
+            }
+        });
+    }
 
     // Add Resource Modal Logic
     const btnAddResourceFab = document.getElementById('btn-add-resource-fab');
@@ -163,6 +247,43 @@ document.addEventListener('DOMContentLoaded', () => {
             currentResLng = null;
             btnResGps.innerHTML = '📍 Use GPS';
             viewAddResource.style.display = 'none';
+        });
+    }
+
+    // --- Route Feedback Logic ---
+    let currentFeedbackDest = null;
+    const viewFeedback = document.getElementById('view-route-feedback');
+    const btnSkipFeedback = document.getElementById('btn-skip-feedback');
+    const feedbackBtns = document.querySelectorAll('.btn-feedback');
+
+    window.showRouteFeedbackPrompt = function(destLatLon) {
+        if (!viewFeedback) return;
+        currentFeedbackDest = destLatLon;
+        viewFeedback.style.display = 'flex';
+    };
+
+    if (viewFeedback && btnSkipFeedback) {
+        btnSkipFeedback.addEventListener('click', () => {
+            viewFeedback.style.display = 'none';
+            currentFeedbackDest = null;
+        });
+
+        feedbackBtns.forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const feedbackVal = e.target.getAttribute('data-feedback');
+                try {
+                    await NerRekshaData.saveRouteFeedback({
+                        destination: currentFeedbackDest,
+                        feedback: feedbackVal
+                    });
+                    alert("Thank you for helping keep the community safe!");
+                } catch (err) {
+                    console.error("Failed to save feedback", err);
+                } finally {
+                    viewFeedback.style.display = 'none';
+                    currentFeedbackDest = null;
+                }
+            });
         });
     }
 

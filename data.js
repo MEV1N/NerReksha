@@ -4,12 +4,18 @@
  */
 
 const DB_NAME = 'NerRekshaDB';
-const DB_VERSION = 1;
+const DB_VERSION = 3;
 const STORES = {
     REPORTS: 'reports',
     SOS: 'sos',
     SAFE_PLACES: 'safe_places',
-    PREFS: 'preferences'
+    PREFS: 'preferences',
+    PLACES: 'places',
+    ROAD_NODES: 'roadNodes',
+    ROAD_EDGES: 'roadEdges',
+    MAP_METADATA: 'mapMetadata',
+    SETTINGS: 'settings',
+    ROUTE_FEEDBACK: 'route_feedback'
 };
 
 class OfflineDataManager {
@@ -54,6 +60,24 @@ class OfflineDataManager {
                 }
                 if (!db.objectStoreNames.contains(STORES.PREFS)) {
                     db.createObjectStore(STORES.PREFS, { keyPath: 'key' });
+                }
+                if (!db.objectStoreNames.contains(STORES.PLACES)) {
+                    db.createObjectStore(STORES.PLACES, { keyPath: 'id' });
+                }
+                if (!db.objectStoreNames.contains(STORES.ROAD_NODES)) {
+                    db.createObjectStore(STORES.ROAD_NODES, { keyPath: 'id' });
+                }
+                if (!db.objectStoreNames.contains(STORES.ROAD_EDGES)) {
+                    db.createObjectStore(STORES.ROAD_EDGES, { keyPath: 'id' });
+                }
+                if (!db.objectStoreNames.contains(STORES.MAP_METADATA)) {
+                    db.createObjectStore(STORES.MAP_METADATA, { keyPath: 'id' });
+                }
+                if (!db.objectStoreNames.contains(STORES.SETTINGS)) {
+                    db.createObjectStore(STORES.SETTINGS, { keyPath: 'key' });
+                }
+                if (!db.objectStoreNames.contains(STORES.ROUTE_FEEDBACK)) {
+                    db.createObjectStore(STORES.ROUTE_FEEDBACK, { keyPath: 'id' });
                 }
             };
         });
@@ -107,6 +131,50 @@ class OfflineDataManager {
         } else {
             // LocalStorage Fallback
             return Promise.resolve(JSON.parse(localStorage.getItem(DB_NAME + '_' + storeName) || '[]'));
+        }
+    }
+
+    async clearStore(storeName) {
+        await this.initPromise;
+        if (this.useIndexedDB && this.db) {
+            return new Promise((resolve, reject) => {
+                const transaction = this.db.transaction([storeName], 'readwrite');
+                const store = transaction.objectStore(storeName);
+                const request = store.clear();
+                request.onsuccess = () => resolve(true);
+                request.onerror = (e) => reject(e);
+            });
+        } else {
+            localStorage.removeItem(DB_NAME + '_' + storeName);
+            return Promise.resolve(true);
+        }
+    }
+
+    async saveMany(storeName, items) {
+        await this.initPromise;
+        if (this.useIndexedDB && this.db) {
+            return new Promise((resolve, reject) => {
+                const transaction = this.db.transaction([storeName], 'readwrite');
+                const store = transaction.objectStore(storeName);
+                
+                let i = 0;
+                function putNext() {
+                    if (i < items.length) {
+                        store.put(items[i]).onsuccess = putNext;
+                        i++;
+                    } else {
+                        resolve(true);
+                    }
+                }
+                putNext();
+                transaction.onerror = (e) => reject(e);
+            });
+        } else {
+            // LocalStorage Fallback (slow for large data, but works)
+            for (let item of items) {
+                await this.save(storeName, item);
+            }
+            return Promise.resolve(true);
         }
     }
 
@@ -177,6 +245,33 @@ class OfflineDataManager {
             sos.status = newStatus;
             return this.save(STORES.SOS, sos);
         }
+    }
+
+    async saveRouteFeedback(feedbackData) {
+        if (!feedbackData.timestamp) feedbackData.timestamp = Date.now();
+        return this.save(STORES.ROUTE_FEEDBACK, feedbackData);
+    }
+
+    async loadRouteFeedback() {
+        return this.loadAll(STORES.ROUTE_FEEDBACK);
+    }
+
+    // --- Offline Region Data Methods ---
+
+    async loadPlaces() {
+        return this.loadAll(STORES.PLACES);
+    }
+
+    async loadRoadNodes() {
+        return this.loadAll(STORES.ROAD_NODES);
+    }
+
+    async loadRoadEdges() {
+        return this.loadAll(STORES.ROAD_EDGES);
+    }
+    
+    async loadMapMetadata() {
+        return this.loadAll(STORES.MAP_METADATA);
     }
 
     async clearAllData() {
