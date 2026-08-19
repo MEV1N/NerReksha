@@ -27,7 +27,9 @@ class AStarEngine {
         for (const h of this.hazards) {
             const dist = window.GeoDistance.distanceToSegment(h.lat, h.lon, fromNode.lat, fromNode.lon, toNode.lat, toNode.lon);
             if (dist <= h.radius) {
-                if ((h.type === 'road-blocked' || h.type === 'bridge-damaged' || h.type === 'landslide') && h.severity >= 3) {
+                // Hard block for severe hazards of specific types, or ANY hazard of severity >= 4
+                if (h.severity >= 4 || 
+                   ((h.type === 'road-blocked' || h.type === 'road' || h.type === 'bridge' || h.type === 'landslide' || h.type === 'flood') && h.severity >= 3)) {
                     isBlocked = true;
                     break;
                 }

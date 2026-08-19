@@ -31,19 +31,21 @@ const Routing = {
      * @param {Array} activeHazards Array of current hazards
      */
     calculateRoute: async function(origin, destination, activeHazards = []) {
-        if (navigator.onLine) {
+        if (navigator.onLine && window.OverpassCacher) {
             try {
-                return await this._calculateOnlineRoute(origin, destination, activeHazards);
+                // Ensure the routing engine has graph data for this area before running the algorithm
+                await window.OverpassCacher.ensureCoverage(origin, destination);
             } catch (e) {
-                console.warn("Online routing failed, falling back to offline", e);
-                if (this.isGraphLoaded) {
-                    return this._calculateOfflineRoute(origin, destination, activeHazards);
-                }
-                throw e;
+                console.warn("Failed to fetch fresh network data. Proceeding with cached graph if available.", e);
             }
+        }
+        
+        if (this.isGraphLoaded) {
+            // We have a graph! ALWAYS use the safe algorithm. If it fails (no safe path exists), bubble up the error.
+            return await this._calculateOfflineRoute(origin, destination, activeHazards);
         } else {
-            if (this.isGraphLoaded) {
-                return this._calculateOfflineRoute(origin, destination, activeHazards);
+            if (navigator.onLine) {
+                return await this._calculateOnlineRoute(origin, destination, activeHazards);
             } else {
                 throw new Error("You are offline and no road network is cached for this area.");
             }

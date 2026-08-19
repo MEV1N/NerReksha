@@ -1,163 +1,123 @@
-// report.js
+/**
+ * Hazard reporting logic for NerReksha (Premium UI)
+ */
 document.addEventListener('DOMContentLoaded', () => {
-    const reportForm = document.getElementById('report-form');
-    const categoryBtns = document.querySelectorAll('.category-btn');
-    const locationStatus = document.getElementById('report-location-status');
-    const feedbackEl = document.getElementById('report-feedback');
     
-    let selectedCategory = 'flood';
-    let currentLat = null;
-    let currentLng = null;
+    /* ---------- UI State Variables ---------- */
+    const state = {
+        selectedHazardType: 'flood',
+        selectedHazardSeverity: 1
+    };
 
-    // Handle Category Selection
-    categoryBtns.forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            categoryBtns.forEach(b => b.classList.remove('active'));
-            e.currentTarget.classList.add('active');
-            selectedCategory = e.currentTarget.getAttribute('data-val');
-        });
-    });
+    const HAZARD_TYPES = [
+      { id:'flood', code:'FL', label:'Flood' },
+      { id:'landslide', code:'LS', label:'Landslide' },
+      { id:'tree', code:'FT', label:'Fallen tree' },
+      { id:'road', code:'RB', label:'Road blocked' },
+      { id:'bridge', code:'BD', label:'Bridge damage' },
+      { id:'other', code:'OT', label:'Other' },
+    ];
 
-    const btnUseGps = document.getElementById('btn-use-gps');
-    const locationInput = document.getElementById('incident-location');
-
-    if (btnUseGps) {
-        btnUseGps.addEventListener('click', () => {
-            locationStatus.style.display = 'block';
-            locationStatus.innerHTML = `📍 Locating...`;
-            locationStatus.style.color = 'var(--gray-color)';
-            fetchLocation();
+    /* ---------- type grids (report) ---------- */
+    const container = document.getElementById('hazardTypeGrid');
+    if (container) {
+        container.innerHTML='';
+        HAZARD_TYPES.forEach(t => {
+            const el = document.createElement('button');
+            el.type='button';
+            el.className='type-opt';
+            el.dataset.selected = (t.id === state.selectedHazardType) ? 'true' : 'false';
+            el.innerHTML = `<span style="font-family:'IBM Plex Mono',monospace;font-weight:600;">${t.code}</span><span>${t.label}</span>`;
+            el.addEventListener('click', () => {
+                state.selectedHazardType = t.id;
+                [...container.children].forEach(c => c.dataset.selected='false');
+                el.dataset.selected='true';
+            });
+            container.appendChild(el);
         });
     }
 
-    function fetchLocation() {
-        if ('geolocation' in navigator) {
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    currentLat = position.coords.latitude;
-                    currentLng = position.coords.longitude;
-                    locationStatus.innerHTML = `📍 GPS Acquired`;
-                    locationStatus.style.color = 'var(--success-color)';
-                    if (locationInput) {
-                        locationInput.value = `GPS: ${currentLat.toFixed(4)}, ${currentLng.toFixed(4)}`;
-                    }
-                },
-                (error) => {
-                    locationStatus.style.display = 'block';
-                    locationStatus.innerHTML = `📍 Location unavailable (Ensure GPS is on)`;
-                    locationStatus.style.color = 'var(--danger-color)';
-                },
-                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-            );
-        } else {
-            locationStatus.style.display = 'block';
-            locationStatus.innerHTML = `📍 Geolocation not supported`;
-        }
+    /* severity segmented */
+    const sevContainer = document.getElementById('hazardSeverity');
+    if (sevContainer) {
+        sevContainer.addEventListener('click', e => {
+            const btn = e.target.closest('button'); 
+            if(!btn) return;
+            [...e.currentTarget.children].forEach(c => c.dataset.selected='false');
+            btn.dataset.selected='true';
+            state.selectedHazardSeverity = Number(btn.dataset.val);
+        });
     }
 
-    // Map categories to titles for display
     const categoryTitles = {
         'flood': 'Flood Reported',
         'landslide': 'Landslide Reported',
-        'tree-fallen': 'Tree Fallen',
-        'road-blocked': 'Road Blocked',
-        'bridge-damaged': 'Bridge Damaged',
+        'tree': 'Tree Fallen',
+        'road': 'Road Blocked',
+        'bridge': 'Bridge Damaged',
         'other': 'Incident Reported'
     };
 
-    // Handle Submission
-    reportForm.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        
-        const description = document.getElementById('incident-desc').value.trim();
-        const severity = document.getElementById('incident-severity').value;
-        const locationText = locationInput ? locationInput.value.trim() : '';
-        
-        let lat = currentLat;
-        let lng = currentLng;
+    /* ---------- Submit Handler ---------- */
+    const submitHazard = document.getElementById('submitHazard');
+    if (submitHazard) {
+        submitHazard.addEventListener('click', async () => {
+            const description = document.getElementById('hazardDesc').value.trim();
+            const severityMap = { 1: 3, 2: 4, 3: 5 }; // Map 1-3 scale to old 3-5 severity
+            
+            submitHazard.disabled = true;
+            submitHazard.innerHTML = 'Submitting...';
 
-        // Geocode manually entered text if online
-        if (locationText && !locationText.startsWith("GPS:") && navigator.onLine) {
-            try {
-                locationStatus.style.display = 'block';
-                locationStatus.innerHTML = `📍 Searching location...`;
-                const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(locationText + ', Kerala')}`);
-                const data = await response.json();
-                if (data && data.length > 0) {
-                    lat = parseFloat(data[0].lat);
-                    lng = parseFloat(data[0].lon);
-                    locationStatus.innerHTML = `📍 Location found`;
-                } else {
-                    locationStatus.innerHTML = `📍 Location not found, using map center`;
-                }
-            } catch (e) {
-                console.error("Geocoding failed", e);
-            }
-        }
+            let lat = null;
+            let lng = null;
 
-        if (lat === null || lng === null) {
             if (window.nerRekshaMap) {
                 const center = window.nerRekshaMap.getCenter();
                 lat = center.lat;
                 lng = center.lng;
             } else {
-                lat = 9.5804; // Kuttikkanam fallback
+                lat = 9.5804;
                 lng = 76.9734;
             }
-        }
-        
-        const finalDescription = (locationText && !locationText.startsWith("GPS:")) ? 
-            `Location: ${locationText}\n${description}` : 
-            (description || 'No additional details provided.');
 
-        const reportData = {
-            type: selectedCategory,
-            category: selectedCategory,
-            title: categoryTitles[selectedCategory] || 'Incident',
-            description: finalDescription,
-            severity: parseInt(severity, 10),
-            isUserCreated: true,
-            // Add slight jitter so the marker isn't completely hidden under the user's blue dot
-            lat: lat + ((Math.random() - 0.5) * 0.0005),
-            lng: lng + ((Math.random() - 0.5) * 0.0005),
-            timeReported: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
-            status: 'Pending',
-            reporter: 'Anonymous User',
-            confirmations: 1
-        };
+            const reportData = {
+                type: state.selectedHazardType,
+                category: state.selectedHazardType === 'road' ? 'road' : state.selectedHazardType,
+                title: categoryTitles[state.selectedHazardType] || 'Incident',
+                description: description || 'No additional details provided.',
+                severity: severityMap[state.selectedHazardSeverity],
+                isUserCreated: true,
+                lat: lat + ((Math.random() - 0.5) * 0.0005),
+                lng: lng + ((Math.random() - 0.5) * 0.0005),
+                timeReported: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+                status: 'Pending',
+                reporter: 'You',
+                confirmations: 1
+            };
 
-        try {
-            await NerRekshaData.saveReport(reportData);
-            
-            // Show Feedback based on network status
-            feedbackEl.style.display = 'block';
-            if (navigator.onLine) {
-                feedbackEl.textContent = '✅ Synced Successfully';
-                feedbackEl.style.backgroundColor = '#e8f5e9'; // light green
-                feedbackEl.style.color = 'var(--success-color)';
-            } else {
-                feedbackEl.textContent = '💾 Saved Offline';
-                feedbackEl.style.backgroundColor = '#fff3e0'; // light orange
-                feedbackEl.style.color = '#ef6c00'; // dark orange
+            try {
+                await NerRekshaData.saveReport(reportData);
+                window.dispatchEvent(new Event('nerreksha-data-ready'));
+                
+                if (window.showToast) {
+                    window.showToast(navigator.onLine ? 'Hazard report synced' : 'Hazard saved offline');
+                }
+                
+                document.getElementById('hazardDesc').value = '';
+                state.selectedHazardSeverity = 1;
+                if (sevContainer) {
+                    [...sevContainer.children].forEach(c => c.dataset.selected = (c.dataset.val == 1) ? 'true' : 'false');
+                }
+                
+                if (window.closeSheets) window.closeSheets();
+                
+            } catch (err) {
+                console.error('Error saving report', err);
+                alert('Failed to save report.');
+            } finally {
+                submitHazard.disabled = false;
+                submitHazard.innerHTML = 'Submit report';
             }
-
-            // Trigger Map Update
-            window.dispatchEvent(new Event('nerreksha-data-ready'));
-
-            // Reset form
-            document.getElementById('incident-desc').value = '';
-            if (locationInput) locationInput.value = '';
-            locationStatus.style.display = 'none';
-            
-            // Switch back to Map view automatically after a short delay
-            setTimeout(() => {
-                feedbackEl.style.display = 'none';
-                document.querySelector('.nav-item[data-target="view-map"]').click();
-            }, 1500);
-
-        } catch (err) {
-            console.error('Error saving report', err);
-            alert('Failed to save report to local storage.');
-        }
-    });
+        });
+    }
 });

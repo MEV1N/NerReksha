@@ -25,15 +25,30 @@ const OverpassCacher = {
         if (zoom < 14) return;
 
         const bounds = mapInstance.getBounds();
-        const s = bounds.getSouth();
-        const n = bounds.getNorth();
-        const w = bounds.getWest();
-        const e = bounds.getEast();
+        const bboxStr = `${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()}`;
         
-        const bboxStr = `${s},${w},${n},${e}`;
         if (this.lastBbox === bboxStr) return;
         this.lastBbox = bboxStr;
 
+        await this.fetchBbox(bboxStr);
+    },
+    
+    ensureCoverage: async function(origin, destination) {
+        if (!navigator.onLine) return;
+        
+        // Pad the bounding box significantly (approx 6.5km) to allow large detours
+        const pad = 0.06;
+        const minLat = Math.min(origin[0], destination[0]) - pad;
+        const maxLat = Math.max(origin[0], destination[0]) + pad;
+        const minLon = Math.min(origin[1], destination[1]) - pad;
+        const maxLon = Math.max(origin[1], destination[1]) + pad;
+        
+        const bboxStr = `${minLat},${minLon},${maxLat},${maxLon}`;
+        await this.fetchBbox(bboxStr);
+    },
+
+    fetchBbox: async function(bboxStr) {
+        if (this.isFetching) return;
         this.isFetching = true;
         console.log(`Fetching road network for offline caching... bbox: ${bboxStr}`);
 
@@ -57,7 +72,6 @@ const OverpassCacher = {
             const nodeMap = new Map();
             const edges = [];
             
-            // First pass: collect nodes
             for (const el of data.elements) {
                 if (el.type === 'node') {
                     nodes.push({ id: 'n_' + el.id, lat: el.lat, lon: el.lon });
@@ -65,7 +79,6 @@ const OverpassCacher = {
                 }
             }
             
-            // Second pass: create edges from ways
             for (const el of data.elements) {
                 if (el.type === 'way' && el.nodes && el.nodes.length > 1) {
                     const highwayTag = el.tags?.highway || 'residential';
@@ -81,27 +94,8 @@ const OverpassCacher = {
                         if (n1 && n2) {
                             const dist = window.GeoDistance.haversine(n1.lat, n1.lon, n2.lat, n2.lon);
                             
-                            edges.push({
-                                id: `e_${el.id}_${i}_fwd`,
-                                from: 'n_' + n1Id,
-                                to: 'n_' + n2Id,
-                                distance: dist,
-                                roadType: highwayTag,
-                                oneWay: oneway,
-                                hazardPenalty: 0
-                            });
-                            
-                            if (!oneway) {
-                                edges.push({
-                                    id: `e_${el.id}_${i}_rev`,
-                                    from: 'n_' + n2Id,
-                                    to: 'n_' + n1Id,
-                                    distance: dist,
-                                    roadType: highwayTag,
-                                    oneWay: false,
-                                    hazardPenalty: 0
-                                });
-                            }
+                            edges.push({ id: `e_${el.id}_${i}_fwd`, from: 'n_' + n1Id, to: 'n_' + n2Id, distance: dist, roadType: highwayTag, oneWay: oneway, hazardPenalty: 0 });
+                            if (!oneway) edges.push({ id: `e_${el.id}_${i}_rev`, from: 'n_' + n2Id, to: 'n_' + n1Id, distance: dist, roadType: highwayTag, oneWay: false, hazardPenalty: 0 });
                         }
                     }
                 }
@@ -111,13 +105,10 @@ const OverpassCacher = {
             const uniqueEdges = Array.from(new Map(edges.map(e => [e.id, e])).values());
 
             if (uniqueNodes.length > 0) {
-                await window.NerRekshaData.saveMany(STORES.ROAD_NODES, uniqueNodes).catch(e => console.warn("Caching nodes warning:", e));
-                await window.NerRekshaData.saveMany(STORES.ROAD_EDGES, uniqueEdges).catch(e => console.warn("Caching edges warning:", e));
-                console.log(`Cached ${uniqueNodes.length} nodes and ${uniqueEdges.length} edges for offline use.`);
-                
-                if (window.Routing) {
-                    window.Routing.init(); // Reloads graph from DB
-                }
+                await window.NerRekshaData.saveMany(STORES.ROAD_NODES, uniqueNodes).catch(e => console.warn(e));
+                await window.NerRekshaData.saveMany(STORES.ROAD_EDGES, uniqueEdges).catch(e => console.warn(e));
+                console.log(`Cached ${uniqueNodes.length} nodes and ${uniqueEdges.length} edges.`);
+                if (window.Routing) await window.Routing.init(); // Reloads graph
             }
         } catch (err) {
             console.error("Failed to cache road network:", err);

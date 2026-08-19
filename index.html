@@ -1,306 +1,344 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>NerReksha - Emergency Coordination</title>
-    
-    <!-- PWA Manifest -->
-    <link rel="manifest" href="./manifest.json">
-    <meta name="theme-color" content="#0f172a">
-    
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-
-    <!-- Leaflet CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    
-    <!-- Custom CSS -->
-    <link rel="stylesheet" href="./style.css">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>NerReksha — Emergency Coordination</title>
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#14231F">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="./style.css">
 </head>
 <body>
-    <header class="app-header">
-        <h1>NerReksha</h1>
-        <div style="display:flex; gap:8px; align-items:center;">
-            <button id="btn-load-demo">Demo</button>
-            <div id="status-indicator" class="status online">Online</div>
+
+<div class="app">
+
+  <header class="status-strip">
+    <div class="brand">
+      <span class="brand-mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6.1 7-12A7 7 0 0 0 5 9c0 5.9 7 12 7 12z"/><circle cx="12" cy="9" r="2.4"/></svg>
+      </span>
+      <span class="brand-name">NerReksha</span>
+    </div>
+    <button class="conn-pill" id="connPill" data-state="online" aria-pressed="true">
+      <span class="signal" id="signalBars"><i></i><i></i><i></i></span>
+      <span class="conn-text">
+        <span class="conn-state" id="connState">Online</span>
+        <span class="conn-sub" id="connSub">Synced just now</span>
+      </span>
+    </button>
+  </header>
+
+  <div class="map-stage">
+    <div id="map"></div>
+
+    <div class="map-legend-overlay" id="mapLegendOverlay">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <h4 style="margin: 0; font-size: 13px; color: var(--ink);">Map Legend</h4>
+        <button id="closeLegendBtn" style="background: none; border: none; cursor: pointer; color: var(--ink-faint); padding: 0;"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 11.5px; color: var(--ink-muted);">
+        <div><strong style="color:#2B6CB0; font-family:var(--font-mono);">FL</strong> Flood</div>
+        <div><strong style="color:#8B5A2B; font-family:var(--font-mono);">LS</strong> Landslide</div>
+        <div><strong style="color:#2F8F5B; font-family:var(--font-mono);">FT</strong> Fallen Tree</div>
+        <div><strong style="color:#C6862A; font-family:var(--font-mono);">RB</strong> Road Block</div>
+        <div><strong style="color:#C8443A; font-family:var(--font-mono);">BD</strong> Bridge Dmg</div>
+        <div><strong style="color:#1F6F63; font-family:var(--font-mono);">RC</strong> Resource</div>
+        <div><strong style="color:#C8443A; font-family:var(--font-mono);">SOS</strong> Emergency</div>
+        <div><strong style="color:#3ab3c8; font-family:var(--font-mono);">DW</strong> Drinking Water</div>
+        <div><strong style="color:#C8443A; font-family:var(--font-mono);">MD</strong> SOS Medical</div>
+        <div><strong style="color:#C8443A; font-family:var(--font-mono);">TR</strong> SOS Trapped</div>
+      </div>
+    </div>
+
+    <div class="search-overlay">
+      <input type="text" id="map-search-input" class="search-input" placeholder="Search any place or address..." autocomplete="off" />
+      <button id="map-search-btn" class="search-btn"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></button>
+    </div>
+    <div id="search-results-container">
+        <ul id="search-results-list"></ul>
+    </div>
+
+    <div class="route-info-panel" id="route-controls">
+        <div class="route-info-header">
+            <h3>Lowest-Risk Route</h3>
+            <button class="route-cancel-btn" id="btn-cancel-route"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
         </div>
-    </header>
+        <div class="route-stats">
+            <span id="route-dist">--</span> km • <span id="route-time">--</span> min
+        </div>
+        <div id="route-safety-container">
+            <span class="route-safety-badge" id="route-safety-badge">Safety Score: --/100</span>
+        </div>
+        <div class="route-warnings" id="route-warnings"></div>
+    </div>
 
-    <main id="main-content">
-        <!-- Map View -->
-        <section id="view-map" class="view active">
-            <!-- Search -->
-            <div class="search-overlay">
-                <input type="text" id="map-search-input" placeholder="Search any place or address..." autocomplete="off" />
-                <button id="map-search-btn">🔍</button>
-            </div>
-            <!-- Search Results -->
-            <div id="search-results-container" style="display:none; position:absolute; top:62px; left:16px; right:16px; z-index:1001; max-height:240px; overflow-y:auto;">
-                <ul id="search-results-list" style="list-style:none; padding:0; margin:0;"></ul>
-            </div>
+    <div class="map-controls">
+      <button class="round-btn" id="legendBtn" aria-label="Show Legend" title="Map Legend">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h7"/></svg>
+      </button>
+      <button class="round-btn" id="demoBtn" aria-label="Load demo data">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v12c0 1.7 3.1 3 7 3s7-1.3 7-3V6"/><path d="M5 12c0 1.7 3.1 3 7 3s7-1.3 7-3"/></svg>
+      </button>
+      <button class="round-btn" id="locateBtn" aria-label="Find my location">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+      </button>
+    </div>
 
-            <!-- Filter Chips -->
-            <div class="map-filters">
-                <button class="filter-chip active" data-filter="all">All</button>
-                <button class="filter-chip" data-filter="sos">🚨 SOS</button>
-                <button class="filter-chip" data-filter="hazard">🌊 Hazards</button>
-                <button class="filter-chip" data-filter="hospital">🏥 Medical</button>
-                <button class="filter-chip" data-filter="relief-camp">⛺ Camps</button>
-                <button class="filter-chip" data-filter="food">🍲 Food</button>
-                <button class="filter-chip" data-filter="drinking-water">💧 Water</button>
-                <button class="filter-chip" data-filter="charging">🔋 Power</button>
-            </div>
-            <!-- Route Info Panel -->
-            <div id="route-controls" style="display:none; position:absolute; bottom:16px; left:16px; right:80px; z-index:999;">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                    <h3 id="route-dest-name">Lowest-Risk Route</h3>
-                    <button id="btn-cancel-route" style="background:none; border:none; font-size:16px; cursor:pointer;">✕</button>
-                </div>
-                <div id="route-stats" style="font-size:14px;">
-                    <span id="route-dist">--</span> km • <span id="route-time">--</span> min
-                    <div id="route-safety" style="margin-top:4px; font-weight:600;">Safety Score: --/100</div>
-                    <div id="route-warnings" style="margin-top:4px;"></div>
-                </div>
-            </div>
+    <button class="fab-sos" id="fabSOS">
+      <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 16.5h.01"/><path d="M10.3 3.9 2.4 18a1.6 1.6 0 0 0 1.4 2.4h16.4a1.6 1.6 0 0 0 1.4-2.4L13.7 3.9a1.6 1.6 0 0 0-2.8 0Z"/></svg>
+      SOS
+      <span class="pulse"></span>
+    </button>
+  </div>
 
-            <!-- FABs -->
-            <button id="btn-nearest-help">🆘 Nearest Help</button>
-            <button id="btn-locate-me">📍</button>
+  <nav class="bottom-nav">
+    <button class="nav-item active" data-view="map">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 6 6-2 6 2 6-2v14l-6 2-6-2-6 2Z"/><path d="M9 4v14M15 6v14"/></svg>
+      Map
+    </button>
+    <button class="nav-item" data-view="report">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 2.4 18a1.6 1.6 0 0 0 1.4 2.4h16.4a1.6 1.6 0 0 0 1.4-2.4L13.7 3.9a1.6 1.6 0 0 0-2.8 0Z"/><path d="M12 9v4M12 16.5h.01"/></svg>
+      Report
+    </button>
+    <button class="nav-item" data-view="sos" style="color: var(--danger-ink);">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="stroke: var(--danger);"><path d="M10.3 3.9 2.4 18a1.6 1.6 0 0 0 1.4 2.4h16.4a1.6 1.6 0 0 0 1.4-2.4L13.7 3.9a1.6 1.6 0 0 0-2.8 0Z"/><path d="M12 9v4M12 16.5h.01"/></svg>
+      SOS
+    </button>
+    <button class="nav-item" data-view="resources">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5"/></svg>
+      Resources
+    </button>
+    <button class="nav-item" data-view="info">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 8v.01"/></svg>
+      Info
+    </button>
+  </nav>
 
-            <div id="map-container"></div>
-        </section>
+  <div class="scrim" id="scrim"></div>
 
-        <!-- SOS View -->
-        <section id="view-sos" class="view">
-            <div class="content-container">
-                <h2>🚨 Emergency SOS</h2>
-                <p class="page-subtitle">Broadcast your location to nearby rescuers — works offline.</p>
-                
-                <form id="sos-form" style="margin-top: 16px;">
-                    <div class="form-group">
-                        <label class="form-label">Emergency Type</label>
-                        <select id="sos-type" class="form-control" required>
-                            <option value="Medical">Medical Emergency</option>
-                            <option value="Trapped">Trapped / Needs Rescue</option>
-                            <option value="Evacuation">Needs Evacuation</option>
-                            <option value="Other">Other</option>
-                        </select>
-                    </div>
-                    
-                    <div class="form-group" style="margin-top: 16px;">
-                        <label class="form-label">People Count</label>
-                        <input type="number" id="sos-people" class="form-control" value="1" min="1" required />
-                    </div>
+  <!-- REPORT SHEET -->
+  <section class="sheet" id="sheet-report">
+    <div class="sheet-grabber"></div>
+    <div class="sheet-head">
+      <div>
+        <div class="sheet-title">Report a hazard</div>
+        <div class="sheet-sub">Visible to everyone nearby, instantly</div>
+      </div>
+      <button class="sheet-close" data-close><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="sheet-body">
+      <div class="field">
+        <label>Hazard type</label>
+        <div class="type-grid" id="hazardTypeGrid"></div>
+      </div>
+      <div class="field">
+        <label>Severity</label>
+        <div class="seg" id="hazardSeverity">
+          <button data-val="1" data-selected="true">Minor</button>
+          <button data-val="2">Serious</button>
+          <button data-val="3">Severe</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>Description</label>
+        <textarea id="hazardDesc" placeholder="What are you seeing? e.g. water knee-deep, rising slowly"></textarea>
+      </div>
+      <div class="field">
+        <label>Location</label>
+        <div class="gps-row">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6.1 7-12A7 7 0 0 0 5 9c0 5.9 7 12 7 12z"/><circle cx="12" cy="9" r="2.4"/></svg>
+          <span id="hazardGpsText">Using map center — drag map to adjust</span>
+        </div>
+      </div>
+      <button class="btn-primary" id="submitHazard">Submit report</button>
+      <p class="helper-note">Reports save to this device immediately and sync to the community map when a connection is available.</p>
+    </div>
+  </section>
 
-                    <div class="form-group" style="margin-top: 16px;">
-                        <label class="form-label">Contact Number (Optional)</label>
-                        <input type="tel" id="sos-contact" class="form-control" placeholder="Phone number" />
-                    </div>
+  <!-- SOS SHEET -->
+  <section class="sheet" id="sheet-sos">
+    <div class="sheet-grabber"></div>
+    <div class="sheet-head">
+      <div>
+        <div class="sheet-title">Send SOS</div>
+        <div class="sheet-sub">Shares your location with nearby responders</div>
+      </div>
+      <button class="sheet-close" data-close><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="sheet-body">
+      <div class="field">
+        <label>Emergency type</label>
+        <div class="type-grid" id="sosTypeGrid"></div>
+      </div>
+      <div class="field">
+        <label>People affected</label>
+        <div class="stepper">
+          <button id="peopleMinus">–</button>
+          <span class="count" id="peopleCount">1</span>
+          <button id="peoplePlus">+</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>Contact number (optional)</label>
+        <input class="text-input" id="sosContact" placeholder="10-digit mobile number" inputmode="numeric" />
+      </div>
+      <div class="field">
+        <label>Notes (optional)</label>
+        <textarea id="sosNotes" placeholder="Anything responders should know"></textarea>
+      </div>
+      <div class="field">
+        <label>Location</label>
+        <div class="gps-row">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6.1 7-12A7 7 0 0 0 5 9c0 5.9 7 12 7 12z"/><circle cx="12" cy="9" r="2.4"/></svg>
+          <span id="sosGpsText">Using map center — drag map to adjust</span>
+        </div>
+      </div>
+      <button class="btn-primary btn-danger" id="submitSOS">Send SOS now</button>
 
-                    <div class="form-group" style="margin-top: 16px; margin-bottom: 24px;">
-                        <label class="form-label">Description (Optional)</label>
-                        <textarea id="sos-desc" class="form-control" rows="2" placeholder="Describe the situation..."></textarea>
-                    </div>
+      <div style="margin-top:26px;">
+        <label style="display:block;font-size:12.5px;font-weight:600;color:var(--ink-muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.04em;">Active requests</label>
+        <div class="card-list" id="sosList"></div>
+      </div>
+    </div>
+  </section>
 
-                    <button type="button" class="btn-large btn-danger" id="btn-trigger-sos" style="width: 100%; box-shadow: 0 4px 12px rgba(244,67,54,0.5);">BROADCAST SOS NOW</button>
-                </form>
-            </div>
-        </section>
+  <!-- RESOURCES SHEET -->
+  <section class="sheet" id="sheet-resources">
+    <div class="sheet-grabber"></div>
+    <div class="sheet-head">
+      <div>
+        <div class="sheet-title">Community resources</div>
+        <div class="sheet-sub">Shelters, supplies and help nearby</div>
+      </div>
+      <button class="sheet-close" data-close><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="sheet-body">
+      <div class="tabbar">
+        <button data-tab="browse" data-selected="true">Browse</button>
+        <button data-tab="add">Add resource</button>
+      </div>
 
-        <!-- Report View -->
-        <section id="view-report" class="view">
-            <div class="content-container">
-                <h2>⚠️ Report Incident</h2>
-                <p class="page-subtitle">Help others by reporting hazards around you.</p>
-                <div id="report-feedback" style="display:none; padding:16px; margin-bottom:16px; border-radius:8px; font-weight:bold; text-align:center;"></div>
-                <form id="report-form">
-                    <label class="form-label">Type of Incident</label>
-                    <div class="category-grid">
-                        <button type="button" class="category-btn active" data-val="flood">🌊 Flood</button>
-                        <button type="button" class="category-btn" data-val="landslide">⛰️ Landslide</button>
-                        <button type="button" class="category-btn" data-val="tree-fallen">🌳 Tree</button>
-                        <button type="button" class="category-btn" data-val="road-blocked">🚧 Road Blocked</button>
-                        <button type="button" class="category-btn" data-val="bridge-damaged">🌉 Bridge Damaged</button>
-                        <button type="button" class="category-btn" data-val="other">❓ Other</button>
-                    </div>
-                    
-                    <div class="form-group" style="margin-top: 16px;">
-                        <label for="incident-severity" class="form-label">Severity Level</label>
-                        <select id="incident-severity" class="form-control">
-                            <option value="1">1 - Low</option>
-                            <option value="2">2 - Moderate</option>
-                            <option value="3" selected>3 - High</option>
-                            <option value="4">4 - Severe</option>
-                            <option value="5">5 - Critical</option>
-                        </select>
-                    </div>
+      <div id="resourceBrowse">
+        <div class="card-list" id="resourceList"></div>
+      </div>
 
-                    <div class="form-group" style="margin-top: 16px;">
-                        <label for="incident-location" class="form-label">Location</label>
-                        <div style="display: flex; gap: 8px;">
-                            <input type="text" id="incident-location" class="form-control" placeholder="Where did this occur?" style="flex: 1;" required />
-                            <button type="button" id="btn-use-gps" class="btn-secondary" style="padding: 0 12px; font-size: 14px; white-space: nowrap;">📍 Use GPS</button>
-                        </div>
-                    </div>
+      <div id="resourceAdd" style="display:none;">
+        <div class="field">
+          <label>Resource type</label>
+          <div class="type-grid" id="resourceTypeGrid"></div>
+        </div>
+        <div class="field">
+          <label>Name</label>
+          <input class="text-input" id="resourceName" placeholder="e.g. St. Mary's community hall" />
+        </div>
+        <div class="field">
+          <label>Capacity (optional)</label>
+          <input class="text-input" id="resourceCapacity" placeholder="e.g. 40 people" />
+        </div>
+        <div class="field">
+          <label>Contact (optional)</label>
+          <input class="text-input" id="resourceContact" placeholder="Phone number" inputmode="numeric" />
+        </div>
+        <div class="field">
+          <label>Description</label>
+          <textarea id="resourceDesc" placeholder="Facilities available, access notes"></textarea>
+        </div>
+        <button class="btn-primary" id="submitResource">Add to map</button>
+      </div>
+    </div>
+  </section>
 
-                    <div class="location-status" id="report-location-status" style="margin-bottom: 16px; font-size: 14px; color: var(--gray-color); display: none;">
-                        📍 Locating...
-                    </div>
+  <!-- INFO SHEET -->
+  <section class="sheet" id="sheet-info">
+    <div class="sheet-grabber"></div>
+    <div class="sheet-head">
+      <div>
+        <div class="sheet-title">About this device</div>
+        <div class="sheet-sub">How NerReksha keeps working offline</div>
+      </div>
+      <button class="sheet-close" data-close><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="sheet-body">
+      <div class="stat-row">
+        <div class="stat-box"><div class="n" id="statHazards">0</div><div class="l">Hazards on map</div></div>
+        <div class="stat-box"><div class="n" id="statSOS">0</div><div class="l">Open SOS</div></div>
+        <div class="stat-box"><div class="n" id="statResources">0</div><div class="l">Resources</div></div>
+      </div>
 
-                    <div class="form-group" style="margin-top: 16px;">
-                        <label for="incident-desc" class="form-label">Description (Optional)</label>
-                        <textarea id="incident-desc" class="form-control" rows="3" placeholder="Additional details..."></textarea>
-                    </div>
+      <div class="disclaimer-box">
+        Routes and hazard data reflect community reports, not verified conditions. This is the lowest-risk information available — always use your own judgement on the ground.
+      </div>
 
-                    <button type="submit" class="btn-large btn-primary" id="btn-submit-report">Submit Report</button>
-                </form>
-            </div>
-        </section>
+      <div class="info-block">
+        <h4>Works without signal</h4>
+        <p>Reports, SOS requests and resources save to this device immediately. Map tiles you've already viewed stay available offline. Nothing here requires a live connection to function.</p>
+      </div>
 
-        <!-- Community Resources -->
-        <section id="view-safe-places" class="view">
-            <div class="content-container" style="padding-bottom:80px;">
-                <h2>🏠 Community Resources</h2>
-                <p class="page-subtitle">Available shelters, camps, and supplies.</p>
-                <ul class="resource-list">
-                    <!-- Dynamically populated -->
-                </ul>
-            </div>
-            
-            <!-- Floating Action Button -->
-            <button id="btn-add-resource-fab" style="position: fixed; bottom: 80px; right: 24px; width: 56px; height: 56px; border-radius: 50%; background: var(--primary-color); color: white; border: none; font-size: 28px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); cursor: pointer; z-index: 1000; display: flex; align-items: center; justify-content: center;">+</button>
-        </section>
+      <div class="info-block">
+        <h4>Map Legend (Shortforms)</h4>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px;">
+            <div style="font-size:12px; color:var(--ink-muted);"><strong style="color:var(--ink); font-family:var(--font-mono);">FL</strong> Flood</div>
+            <div style="font-size:12px; color:var(--ink-muted);"><strong style="color:var(--ink); font-family:var(--font-mono);">LS</strong> Landslide</div>
+            <div style="font-size:12px; color:var(--ink-muted);"><strong style="color:var(--ink); font-family:var(--font-mono);">FT</strong> Fallen Tree</div>
+            <div style="font-size:12px; color:var(--ink-muted);"><strong style="color:var(--ink); font-family:var(--font-mono);">RB</strong> Road Block</div>
+            <div style="font-size:12px; color:var(--ink-muted);"><strong style="color:var(--ink); font-family:var(--font-mono);">BD</strong> Bridge Damaged</div>
+            <div style="font-size:12px; color:var(--ink-muted);"><strong style="color:var(--ink); font-family:var(--font-mono);">RC</strong> Relief Camp</div>
+            <div style="font-size:12px; color:var(--ink-muted);"><strong style="color:var(--ink); font-family:var(--font-mono);">MC</strong> Medical Camp</div>
+            <div style="font-size:12px; color:var(--ink-muted);"><strong style="color:var(--ink); font-family:var(--font-mono);">FD</strong> Food</div>
+            <div style="font-size:12px; color:var(--ink-muted);"><strong style="color:var(--ink); font-family:var(--font-mono);">DW</strong> Drinking Water</div>
+            <div style="font-size:12px; color:var(--ink-muted);"><strong style="color:var(--ink); font-family:var(--font-mono);">CS</strong> Charging Station</div>
+            <div style="font-size:12px; color:var(--ink-muted);"><strong style="color:var(--ink); font-family:var(--font-mono);">MD</strong> SOS Medical</div>
+            <div style="font-size:12px; color:var(--ink-muted);"><strong style="color:var(--ink); font-family:var(--font-mono);">TR</strong> SOS Trapped</div>
+        </div>
+      </div>
 
-        <!-- Add Resource Modal -->
-        <section id="view-add-resource" class="view" style="position:absolute; top:0; left:0; width:100%; height:100%; background:#fff; z-index:2000; display:none; overflow-y:auto;">
-            <div class="content-container">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-                    <h2 style="margin:0;">Add Resource</h2>
-                    <button id="btn-close-add-resource" style="background:none; border:none; font-size:22px; cursor:pointer; color:var(--text-muted);">✕</button>
-                </div>
-                <form id="add-resource-form">
-                    <div class="form-group" style="margin-top: 16px;">
-                        <label class="form-label">Resource Name</label>
-                        <input type="text" id="res-name" class="form-control" placeholder="E.g. Govt Primary School Camp" required />
-                    </div>
-                    
-                    <div class="form-group" style="margin-top: 16px;">
-                        <label class="form-label">Resource Type</label>
-                        <select id="res-type" class="form-control" required>
-                            <option value="relief-camp">🏠 Relief Camp</option>
-                            <option value="hospital">🏥 Medical Camp / Hospital</option>
-                            <option value="food">🍱 Food Distribution</option>
-                            <option value="drinking-water">💧 Drinking Water</option>
-                            <option value="charging">🔋 Charging Station</option>
-                            <option value="toilet">🚻 Public Toilet</option>
-                            <option value="volunteer">🚜 Volunteer Resource</option>
-                            <option value="fuel">⛽ Fuel</option>
-                            <option value="supply">📦 Supply Distribution</option>
-                            <option value="other">📍 Other</option>
-                        </select>
-                    </div>
+      <button class="btn-secondary" id="loadDemoBtn2" style="margin-bottom:10px;">Load demo data</button>
+      <button class="btn-secondary" id="resetBtn">Clear all local data</button>
+    </div>
+  </section>
+  
+  <!-- Route Feedback Modal -->
+  <section id="view-route-feedback" class="route-feedback-modal">
+      <div class="route-feedback-content">
+          <h3>How was this route?</h3>
+          <p>Your feedback helps improve our community routing model.</p>
+          <button class="btn-feedback passable" data-feedback="passable">✅ Road was Passable</button>
+          <button class="btn-feedback partial" data-feedback="partially-blocked">⚠ Partially Blocked</button>
+          <button class="btn-feedback blocked" data-feedback="inaccessible">⛔ Inaccessible / Dangerous</button>
+          <button id="btn-skip-feedback" style="background: none; border: none; margin-top: 12px; color: var(--ink-faint); cursor: pointer; text-decoration: underline;">Skip</button>
+      </div>
+  </section>
 
-                    <div class="form-group" style="margin-top: 16px;">
-                        <label class="form-label">Location</label>
-                        <div style="display: flex; gap: 8px;">
-                            <input type="text" id="res-location" class="form-control" placeholder="Enter location name" style="flex: 1;" required />
-                            <button type="button" id="btn-res-gps" class="btn-secondary" style="padding: 0 12px; font-size: 14px; white-space: nowrap;">📍 Use GPS</button>
-                        </div>
-                    </div>
+  <div class="toast" id="toast"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"/></svg><span id="toastText">Saved</span></div>
 
-                    <div class="form-group" style="margin-top: 16px;">
-                        <label class="form-label">Capacity (Optional)</label>
-                        <input type="number" id="res-capacity" class="form-control" placeholder="E.g. 200" />
-                    </div>
-                    
-                    <div class="form-group" style="margin-top: 16px;">
-                        <label class="form-label">Contact (Optional)</label>
-                        <input type="tel" id="res-contact" class="form-control" placeholder="Phone number" />
-                    </div>
+</div>
 
-                    <div class="form-group" style="margin-top: 16px;">
-                        <label class="form-label">Facilities Available</label>
-                        <div style="display: flex; gap: 16px; margin-top: 8px;">
-                            <label><input type="checkbox" id="res-fac-food"> Food</label>
-                            <label><input type="checkbox" id="res-fac-water"> Water</label>
-                            <label><input type="checkbox" id="res-fac-power"> Power</label>
-                        </div>
-                    </div>
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-                    <div class="form-group" style="margin-top: 16px;">
-                        <label class="form-label">Description (Optional)</label>
-                        <textarea id="res-desc" class="form-control" rows="2" placeholder="Any additional info..."></textarea>
-                    </div>
+<!-- Application Scripts -->
+<script src="./geo/distance.js"></script>
+<script src="./geo/spatial-index.js"></script>
+<script src="./geo/graph.js"></script>
 
-                    <button type="submit" class="btn-large btn-primary" style="margin-top: 24px; width: 100%;">Add Resource</button>
-                </form>
-            </div>
-        </section>
+<!-- Machine Learning Routing Layer -->
+<script src="./ml/features.js"></script>
+<script src="./ml/model.js"></script>
+<script src="./ml/fallback-model.js"></script>
+<script src="./ml/risk-predictor.js"></script>
 
+<script src="./geo/astar.js"></script>
 
-        <!-- Route Feedback Modal -->
-        <section id="view-route-feedback" class="view" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 3000; display: none; align-items: center; justify-content: center;">
-            <div style="background: white; padding: 24px; border-radius: 8px; width: 90%; max-width: 400px; text-align: center; box-shadow: 0 4px 24px rgba(0,0,0,0.3);">
-                <h3 style="margin-top: 0;">How was this route?</h3>
-                <p style="font-size: 14px; color: var(--gray-color); margin-bottom: 24px;">Your feedback helps improve our community routing model.</p>
-                
-                <div style="display: flex; flex-direction: column; gap: 12px;">
-                    <button class="btn-feedback" data-feedback="passable" style="background: var(--success-color); color: white; padding: 12px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">✅ Road was Passable</button>
-                    <button class="btn-feedback" data-feedback="partially-blocked" style="background: var(--warning-color); color: black; padding: 12px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">⚠ Partially Blocked</button>
-                    <button class="btn-feedback" data-feedback="inaccessible" style="background: var(--danger-color); color: white; padding: 12px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">⛔ Inaccessible / Dangerous</button>
-                    <button id="btn-skip-feedback" style="background: none; border: none; margin-top: 12px; color: var(--gray-color); cursor: pointer; text-decoration: underline;">Skip</button>
-                </div>
-            </div>
-        </section>
-    </main>
+<script src="./data.js"></script>
+<script src="./gps.js"></script>
+<script src="./search.js"></script>
+<script src="./routing.js"></script>
+<script src="./offline.js"></script>
+<script src="./overpass-cacher.js"></script>
 
-    <nav class="bottom-nav">
-        <button class="nav-item active" data-target="view-map">
-            <span class="nav-icon">🗺</span>
-            <span class="nav-label">Map</span>
-        </button>
-        <button class="nav-item" data-target="view-sos">
-            <span class="nav-icon">🚨</span>
-            <span class="nav-label">SOS</span>
-        </button>
-        <button class="nav-item" data-target="view-report">
-            <span class="nav-icon">➕</span>
-            <span class="nav-label">Report</span>
-        </button>
-        <button class="nav-item" data-target="view-safe-places">
-            <span class="nav-icon">🏠</span>
-            <span class="nav-label">Resources</span>
-        </button>
-    </nav>
+<script src="./app.js"></script>
+<script src="./map.js"></script>
 
-    <!-- Leaflet JS -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
-    
-    <!-- Application Scripts -->
-    <script src="./geo/distance.js"></script>
-    <script src="./geo/spatial-index.js"></script>
-    <script src="./geo/graph.js"></script>
-
-    <!-- Machine Learning Routing Layer -->
-    <script src="./ml/features.js"></script>
-    <script src="./ml/model.js"></script>
-    <script src="./ml/fallback-model.js"></script>
-    <script src="./ml/risk-predictor.js"></script>
-
-    <script src="./geo/astar.js"></script>
-    
-    <script src="./data.js"></script>
-    <script src="./gps.js"></script>
-    <script src="./search.js"></script>
-    <script src="./routing.js"></script>
-    <script src="./offline-map.js"></script>
-    <script src="./offline.js"></script>
-    <script src="./overpass-cacher.js"></script>
-    <script src="./map.js"></script>
-    <script src="./report.js"></script>
-    <script src="./app.js"></script>
 </body>
 </html>

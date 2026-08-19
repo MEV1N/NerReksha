@@ -1,87 +1,104 @@
 /**
- * Map initialization and logic for NerReksha
+ * Map initialization and logic for NerReksha (Premium UI)
  * using Leaflet.js
  */
 
 document.addEventListener('DOMContentLoaded', () => {
-    const mapContainer = document.getElementById('map-container');
+    const mapContainer = document.getElementById('map');
     
     if (mapContainer && typeof L !== 'undefined') {
-        // Default location (Idukki / Kuttikkanam fallback)
-        let defaultLocation = [9.5804, 76.9734];
-        const map = L.map('map-container').setView(defaultLocation, 11);
+        const CENTER = [9.585, 76.975];
+        const map = L.map('map', { zoomControl:false, attributionControl:false }).setView(CENTER, 13);
         window.nerRekshaMap = map;
         
-        // Use Offline Map strategy
-        window.OfflineMap.init(map, defaultLocation);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19 }).addTo(map);
+        L.control.attribution({ position:'bottomleft', prefix:false }).addAttribution('© OpenStreetMap').addTo(map);
 
-        if (window.OverpassCacher) {
-            window.OverpassCacher.init(map);
+        if (window.OfflineMap) window.OfflineMap.init(map, CENTER);
+        if (window.OverpassCacher) window.OverpassCacher.init(map);
+        if (window.Routing) window.Routing.init();
+
+        const HAZARD_TYPES = [
+          { id:'flood', code:'FL', color:'#2B6CB0' },
+          { id:'landslide', code:'LS', color:'#8B5A2B' },
+          { id:'tree', code:'FT', color:'#2F8F5B' },
+          { id:'road', code:'RB', color:'#C6862A' },
+          { id:'bridge', code:'BD', color:'#C8443A' },
+          { id:'other', code:'OT', color:'#6B7570' },
+        ];
+        
+        const RESOURCE_TYPES = [
+          { id:'relief', code:'RC' },
+          { id:'medical', code:'MC' },
+          { id:'food', code:'FD' },
+          { id:'water', code:'DW' },
+          { id:'power', code:'CS' },
+          { id:'toilet', code:'PT' },
+          { id:'volunteer', code:'VR' },
+          { id:'fuel', code:'FA' },
+          { id:'supply', code:'SD' },
+          { id:'other', code:'OT' },
+        ];
+
+        const SOS_TYPES = [
+          { id:'medical', code:'MD' },
+          { id:'trapped', code:'TR' },
+          { id:'flood', code:'FL' },
+          { id:'fire', code:'FI' },
+          { id:'other', code:'OT' },
+        ];
+
+        const hazardRadii = { 'flood': 150, 'landslide': 300, 'road': 100, 'tree': 75, 'bridge': 200, 'other': 100 };
+
+        function codeIcon(code, bg, size, ring){
+          return L.divIcon({
+            className: 'nk-marker-wrap',
+            html: `<div class="nk-marker ${ring?'nk-sos-marker':''}" style="width:${size}px;height:${size}px;background:${bg};font-size:${size*0.34}px;">${code}</div>`,
+            iconSize: [size,size],
+            iconAnchor: [size/2, size/2],
+          });
         }
 
-        // Marker Icons Configuration
-        const iconConfig = {
-            'flood': { color: '#2196F3', icon: '🌊' },
-            'landslide': { color: '#795548', icon: '⛰️' },
-            'tree-fallen': { color: '#4CAF50', icon: '🌳' },
-            'road-blocked': { color: '#F44336', icon: '🚧' },
-            'bridge-damaged': { color: '#FF5722', icon: '🌉' },
-            'other': { color: '#9E9E9E', icon: '❓' },
-            'hospital': { color: '#E91E63', icon: '🏥' },
-            'relief-camp': { color: '#FF9800', icon: '⛺' },
-            'food-centre': { color: '#8BC34A', icon: '🍲' },
-            'charging-station': { color: '#9C27B0', icon: '🔋' },
-            'sos': { color: '#B71C1C', icon: '🚨' },
-            'user': { color: '#1976D2', icon: '📍' }
-        };
-
-        const hazardRadii = {
-            'flood': 150,
-            'landslide': 300,
-            'road-blocked': 100,
-            'tree-fallen': 75,
-            'bridge-damaged': 200,
-            'other': 100
-        };
-
-        function createCustomIcon(type, options = {}) {
-            const config = iconConfig[type] || { color: '#757575', icon: '📍' };
-            const isUserCreated = options.isUserCreated || false;
-            const isResolved = options.isResolved || false;
-            
-            // Safe spaces are blue or yellow
-            let color = config.color;
-            if (['hospital', 'relief-camp', 'food-centre', 'charging-station', 'toilet', 'volunteer', 'fuel', 'supply', 'drinking-water', 'food', 'other'].includes(type)) {
-                color = '#FFD54F'; // Yellow-ish
-            }
-            
-            // User created data is distinctly RED
-            if (isUserCreated) {
-                color = '#D32F2F'; // Red
-            }
-
-            if (isResolved) {
-                color = '#9E9E9E'; // Grey
-            }
-
-            // Glow effect for user data to make it stand out
-            let boxShadow = (isUserCreated && !isResolved) ? '0 0 10px 2px rgba(211,47,47,0.8)' : '0 2px 5px rgba(0,0,0,0.3)';
-            let iconText = isResolved ? '✅' : config.icon;
-
-            return L.divIcon({
-                className: 'custom-marker',
-                html: `<div style="background-color: ${color}; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 50%; border: 2px solid white; box-shadow: ${boxShadow}; font-size: 16px;">${iconText}</div>`,
-                iconSize: [36, 36],
-                iconAnchor: [18, 18],
-                popupAnchor: [0, -18]
+        /* ---------- filter chips ---------- */
+        const chipRow = document.getElementById('chipRow');
+        const activeFilters = new Set(HAZARD_TYPES.map(t=>t.id).concat(['resource','sos']));
+        
+        const chipDefs = [
+          ...HAZARD_TYPES.map(t=>({id:t.id, label:t.code, color:t.color})),
+          {id:'sos', label:'SOS', color:'#C8443A'},
+          {id:'resource', label:'Resources', color:'#1F6F63'},
+        ];
+        
+        if (chipRow) {
+            chipDefs.forEach(c => {
+              const el = document.createElement('button');
+              el.className='chip';
+              el.dataset.on = 'true';
+              el.innerHTML = `<span class="dot" style="background:${c.color}"></span>${c.label}`;
+              el.addEventListener('click', () => {
+                if(activeFilters.has(c.id)){ activeFilters.delete(c.id); el.dataset.on='false'; }
+                else { activeFilters.add(c.id); el.dataset.on='true'; }
+                renderMarkers();
+              });
+              chipRow.appendChild(el);
             });
+        }
+
+        function escapeHTML(s){ const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
+        function popupHTML(title, line1, line2, lat, lng){
+          const routeBtn = (lat && lng) ? `<button onclick="window.routeTo(${lat}, ${lng})" style="margin-top:10px; width:100%; padding:6px; border-radius:6px; border:1px solid #CBD5E1; background:#F4F8FB; font-size:12px; cursor:pointer; color:#0F172A; font-weight:600; display:flex; align-items:center; justify-content:center; gap:6px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5"/></svg> Route Here</button>` : '';
+          return `<div style="font-family:'IBM Plex Sans',sans-serif;min-width:160px;">
+            <div style="font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:14.5px;margin-bottom:4px;color:#0F172A;">${escapeHTML(title)}</div>
+            <div style="font-size:13px;color:#475569;line-height:1.4;">${escapeHTML(line1)}</div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#94A3B8;margin-top:6px;">${escapeHTML(line2)}</div>
+            ${routeBtn}
+          </div>`;
         }
 
         window.updateSOSStatusMap = async function(id, status) {
             await NerRekshaData.updateSOSStatus(id, status);
             window.dispatchEvent(new Event('nerreksha-data-ready'));
         };
-
         window.removeResourceMap = async function(id) {
             if (confirm('Are you sure you want to remove this resource?')) {
                 await NerRekshaData.deleteSafePlace(id);
@@ -91,121 +108,88 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let markers = [];
         let routingLines = [];
-        let activeHazards = [];
+        let activeHazardsForRouting = [];
         let userMarker = null;
-        let userLocation = defaultLocation;
-
-        // Current Route State
+        let userLocation = CENTER;
         let currentRouteDest = null;
 
         window.routeTo = async function(lat, lng) {
             currentRouteDest = [lat, lng];
-            
-            // Remove old routes
             routingLines.forEach(l => map.removeLayer(l));
             routingLines = [];
             
-            if (!userLocation) {
-                alert("User location not available yet.");
-                return;
-            }
+            if (!userLocation) return alert("User location not available yet.");
 
             try {
-                const routeData = await window.Routing.calculateRoute(userLocation, [lat, lng], activeHazards);
-                
+                const routeData = await window.Routing.calculateRoute(userLocation, [lat, lng], activeHazardsForRouting);
                 if (routeData) {
                     const latLngs = routeData.geometry;
                     const routeLine = L.polyline(latLngs, {
-                        color: '#4CAF50', // Always green for safety
-                        weight: 6, 
-                        opacity: 0.9,
+                        color: '#4CAF50', weight: 6, opacity: 0.9,
                         dashArray: routeData.source === 'offline' ? '10, 10' : null
                     }).addTo(map);
                     routingLines.push(routeLine);
                     map.fitBounds(routeLine.getBounds(), { padding: [50, 50] });
 
-                    // Update UI
                     document.getElementById('route-controls').style.display = 'block';
-                    document.getElementById('route-dist').textContent = (routeData.distance / 1000).toFixed(1) + ' km';
-                    document.getElementById('route-time').textContent = Math.round(routeData.duration / 60) + ' min';
+                    document.getElementById('route-dist').textContent = (routeData.distance / 1000).toFixed(1);
+                    document.getElementById('route-time').textContent = Math.round(routeData.duration / 60);
                     
-                    const safetyEl = document.getElementById('route-safety');
-                    safetyEl.textContent = `Safety Score: ${routeData.safetyScore ? routeData.safetyScore.toFixed(0) : 100}/100`;
-                    safetyEl.style.color = routeData.safetyScore > 80 ? 'var(--success-color)' : (routeData.safetyScore > 50 ? 'var(--warning-color)' : 'var(--danger-color)');
+                    const badge = document.getElementById('route-safety-badge');
+                    badge.textContent = `Safety Score: ${routeData.safetyScore ? routeData.safetyScore.toFixed(0) : 100}/100`;
+                    badge.className = 'route-safety-badge ' + (routeData.safetyScore > 80 ? 'safe' : (routeData.safetyScore > 50 ? 'warn' : 'danger'));
 
                     const warningsEl = document.getElementById('route-warnings');
                     if (routeData.safetyScore < 50 || routeData.maxRisk > 0.6) {
-                        warningsEl.innerHTML = '<span style="color:var(--danger-color); font-weight:bold;">⚠️ Route traverses known hazards and may be unsafe!</span>';
-                        alert("Warning: This route traverses known hazards and may be unsafe. Please exercise extreme caution.");
+                        warningsEl.innerHTML = '<span style="color:var(--danger-ink); font-weight:bold;">⚠️ Route traverses known hazards and may be unsafe!</span>';
+                        alert("Warning: This route traverses known hazards and may be unsafe.");
                     } else if (routeData.hazardsCount > 0 || routeData.maxRisk > 0.5) {
-                        warningsEl.innerHTML = `<span style="color:var(--warning-color);">⚠️ Intersects lower-risk hazard area(s) or risky segments.</span>`;
+                        warningsEl.innerHTML = `<span style="color:var(--warning-ink);">⚠️ Intersects lower-risk hazard area(s).</span>`;
                     } else {
-                        warningsEl.innerHTML = '<span style="color:var(--success-color);">✓ No reported hazards on route.</span>';
+                        warningsEl.innerHTML = '<span style="color:var(--success-ink);">✓ No reported hazards on route.</span>';
                     }
                 }
             } catch (err) {
-                console.error("Routing error:", err);
                 alert(err.message || "Routing failed.");
             }
         };
 
-        // Route Controls UI
         const btnCancelRoute = document.getElementById('btn-cancel-route');
         if (btnCancelRoute) {
             btnCancelRoute.addEventListener('click', () => {
                 routingLines.forEach(l => map.removeLayer(l));
                 routingLines = [];
-                
-                // Prompt for feedback
-                if (currentRouteDest) {
-                    window.showRouteFeedbackPrompt(currentRouteDest);
-                }
-                
+                if (currentRouteDest) window.showRouteFeedbackPrompt(currentRouteDest);
                 currentRouteDest = null;
                 document.getElementById('route-controls').style.display = 'none';
             });
         }
 
-        // Search Bar Logic (Offline First)
+        // Search Bar Logic
         const searchInput = document.getElementById('map-search-input');
         const searchBtn = document.getElementById('map-search-btn');
         const searchResultsContainer = document.getElementById('search-results-container');
         const searchResultsList = document.getElementById('search-results-list');
 
         async function performSearch() {
-            const query = searchInput.value;
-            if (!query) {
-                searchResultsContainer.style.display = 'none';
-                return;
-            }
-
-            const results = await window.OfflineSearch.searchPlaces(query, userLocation ? {lat: userLocation[0], lon: userLocation[1]} : null);
-            
+            if (!searchInput.value) { searchResultsContainer.style.display = 'none'; return; }
+            const results = await window.OfflineSearch.searchPlaces(searchInput.value, userLocation ? {lat: userLocation[0], lon: userLocation[1]} : null);
             searchResultsList.innerHTML = '';
+            
             if (results.length === 0) {
-                searchResultsList.innerHTML = '<li style="padding: 12px; color: var(--gray-color);">No offline places found.</li>';
+                searchResultsList.innerHTML = '<li class="search-result-item" style="color: var(--ink-faint);">No places found.</li>';
             } else {
-                // Show top 5
                 results.slice(0, 5).forEach(res => {
                     const li = document.createElement('li');
-                    li.style.padding = '12px';
-                    li.style.borderBottom = '1px solid #eee';
-                    li.style.cursor = 'pointer';
-                    
+                    li.className = 'search-result-item';
                     const distStr = res.distance !== null ? ` • ${(res.distance/1000).toFixed(1)} km` : '';
-                    
-                    li.innerHTML = `
-                        <strong>${res.place.name}</strong>
-                        <div style="font-size: 12px; color: var(--gray-color);">${(res.place.type || 'place').toUpperCase()}${distStr}</div>
-                    `;
-                    
+                    li.innerHTML = `<strong>${res.place.name}</strong><span>${(res.place.type || 'place').toUpperCase()}${distStr}</span>`;
                     li.addEventListener('click', () => {
                         searchResultsContainer.style.display = 'none';
                         map.setView([res.place.lat, res.place.lon], 15);
                         window.routeTo(res.place.lat, res.place.lon);
                         searchInput.value = res.place.name;
                     });
-                    
                     searchResultsList.appendChild(li);
                 });
             }
@@ -215,226 +199,120 @@ document.addEventListener('DOMContentLoaded', () => {
         if (searchBtn && searchInput) {
             searchBtn.addEventListener('click', performSearch);
             searchInput.addEventListener('input', () => {
-                if (searchInput.value.length > 2) {
-                    performSearch();
-                } else {
-                    searchResultsContainer.style.display = 'none';
-                }
+                if (searchInput.value.length > 2) performSearch();
+                else searchResultsContainer.style.display = 'none';
             });
         }
         
-        // Hide search results on map click
-        map.on('click', () => {
-            if (searchResultsContainer) searchResultsContainer.style.display = 'none';
-        });
+        map.on('click', () => { if (searchResultsContainer) searchResultsContainer.style.display = 'none'; });
 
-        async function renderMarkers(filterCategory = 'all') {
+        async function renderMarkers() {
             markers.forEach(m => map.removeLayer(m));
             markers = [];
-            activeHazards = [];
+            activeHazardsForRouting = [];
+            
+            let hazardsCount = 0;
+            let sosCount = 0;
+            let resourceCount = 0;
 
             if (typeof NerRekshaData !== 'undefined') {
                 try {
                     const reports = await NerRekshaData.loadReports();
                     reports.forEach(incident => {
-                        // Allow 'all', 'hazard', or the specific incident category
-                        if (filterCategory !== 'all' && filterCategory !== 'hazard' && incident.category !== filterCategory) return;
+                        const typeId = incident.type === 'road-blocked' ? 'road' : incident.type;
+                        const t = HAZARD_TYPES.find(x => x.id === typeId) || HAZARD_TYPES[5];
+                        const lat = incident.lat; const lng = incident.lng;
                         
-                        const lat = incident.lat !== undefined ? incident.lat : (userLocation[0] + (incident.latOffset || 0));
-                        const lng = incident.lng !== undefined ? incident.lng : (userLocation[1] + (incident.lngOffset || 0));
-
-                        // 1. Draw Avoidance Circle for hazards
-                        if (hazardRadii[incident.type]) {
-                            const radius = hazardRadii[incident.type];
-                            const circle = L.circle([lat, lng], {
-                                color: 'red',
-                                fillColor: '#f03',
-                                fillOpacity: 0.25,
-                                weight: 2,
-                                radius: radius
-                            }).addTo(map);
-                            markers.push(circle);
-                            activeHazards.push({ lat, lng, radius });
+                        // For routing engine
+                        if (hazardRadii[typeId]) {
+                            activeHazardsForRouting.push({ lat, lng, radius: hazardRadii[typeId], type: incident.type, severity: incident.severity || 1 });
                         }
 
-                        // 2. Draw Marker
-                        const marker = L.marker([lat, lng], {
-                            icon: createCustomIcon(incident.type, { isUserCreated: incident.isUserCreated })
-                        });
-
-                        const badgeColor = incident.isUserCreated ? '#D32F2F' : (iconConfig[incident.type] ? iconConfig[incident.type].color : '#757575');
-                        const severityText = incident.severity ? ` | Severity: ${incident.severity}/5` : '';
-
-                        const popupHtml = `
-                            <div class="popup-content">
-                                <span class="popup-badge" style="background-color: ${badgeColor}">${incident.type.replace('-', ' ').toUpperCase()}</span>
-                                <h3>${incident.title}</h3>
-                                <p>${incident.description}</p>
-                                <div class="popup-meta">
-                                    <strong>Status:</strong> ${incident.status || 'Pending'}${severityText}<br>
-                                    <strong>Time:</strong> ${incident.timeReported || 'Just now'}<br>
-                                    <strong>Reporter:</strong> ${incident.reporter || 'Anonymous'}<br>
-                                    <strong>Confirmations:</strong> ${incident.confirmations || 0}
-                                </div>
-                            </div>
-                        `;
-
-                        marker.bindPopup(popupHtml);
+                        if (!activeFilters.has(typeId)) return;
+                        
+                        hazardsCount++;
+                        const size = 26 + (incident.severity||1)*4;
+                        const marker = L.marker([lat, lng], { icon: codeIcon(t.code, t.color, size) })
+                            .bindPopup(popupHTML(incident.title, incident.description, `Severity ${incident.severity} · ${incident.timeReported}`));
                         marker.addTo(map);
                         markers.push(marker);
                     });
 
-                    // Render Community Resources
-                    if (['all', 'relief-camp', 'hospital', 'food', 'drinking-water', 'charging', 'toilet', 'volunteer', 'fuel', 'supply', 'other'].includes(filterCategory)) {
-                        const safePlaces = await NerRekshaData.loadSafePlaces();
-                        safePlaces.forEach(place => {
-                            if (filterCategory !== 'all' && place.type !== filterCategory) return;
+                    const safePlaces = await NerRekshaData.loadSafePlaces();
+                    safePlaces.forEach(place => {
+                        if (!activeFilters.has('resource')) return;
+                        resourceCount++;
+                        const t = RESOURCE_TYPES.find(x => x.id === (place.type||'').replace('-camp','')) || RESOURCE_TYPES[9];
+                        const marker = L.marker([place.lat, place.lng], { icon: codeIcon(t.code, '#1F6F63', 26) })
+                            .bindPopup(popupHTML(place.title, t.label + (place.capacity? ' · '+place.capacity : ''), place.description||'', place.lat, place.lng));
+                        marker.addTo(map);
+                        markers.push(marker);
+                    });
 
-                            const lat = place.lat !== undefined ? place.lat : (userLocation[0] + (place.latOffset || 0));
-                            const lng = place.lng !== undefined ? place.lng : (userLocation[1] + (place.lngOffset || 0));
-
-                            const marker = L.marker([lat, lng], {
-                                icon: createCustomIcon(place.type, { isUserCreated: place.isUserCreated })
-                            });
-
-                            const popupHtml = `
-                                <div class="popup-content">
-                                    <span class="popup-badge" style="background-color: #FFD54F; color:#000;">${(place.type||'RESOURCE').toUpperCase().replace('-', ' ')}</span>
-                                    <h3 style="margin-bottom: 4px;">${place.title}</h3>
-                                    ${place.capacity ? `<span style="font-size:12px; font-weight:bold;">Capacity: ${place.capacity}</span><br>` : ''}
-                                    <p>${place.description}</p>
-                                    <div style="display:flex; gap: 4px; margin-bottom: 8px;">
-                                        ${place.hasFood ? '<span title="Food" style="font-size:16px;">🍲</span>' : ''}
-                                        ${place.hasWater ? '<span title="Water" style="font-size:16px;">💧</span>' : ''}
-                                        ${place.hasPower ? '<span title="Power" style="font-size:16px;">🔋</span>' : ''}
-                                    </div>
-                                    <button class="btn-secondary" onclick="window.routeTo(${lat}, ${lng})" style="margin-top:8px; padding: 8px; width:100%;">Route Here</button>
-                                    ${place.isUserCreated ? `<button class="btn-danger" onclick="window.removeResourceMap('${place.id}')" style="margin-top:8px; padding: 8px; width:100%; border:none; border-radius:4px; color:white; background:#F44336; cursor:pointer;">Remove Resource</button>` : ''}
-                                </div>
-                            `;
-
-                            marker.bindPopup(popupHtml);
-                            marker.addTo(map);
-                            markers.push(marker);
-                        });
-                    }
-
-                    // Render SOS
-                    if (filterCategory === 'all' || filterCategory === 'sos') {
-                        const sosList = await NerRekshaData.loadSOS();
-                        sosList.forEach(sos => {
-                            const isResolved = sos.status === 'Resolved';
-                            const marker = L.marker([sos.lat, sos.lng], {
-                                icon: createCustomIcon('sos', { isUserCreated: true, isResolved: isResolved })
-                            });
-
-                            const statusColor = isResolved ? '#4CAF50' : '#B71C1C';
-                            const statusSelect = `
-                                <select onchange="window.updateSOSStatusMap('${sos.id}', this.value)" style="margin-top:4px; padding:4px; width:100%;">
-                                    <option value="Waiting" ${sos.status==='Waiting'?'selected':''}>Waiting</option>
-                                    <option value="Rescue On The Way" ${sos.status==='Rescue On The Way'?'selected':''}>Rescue On The Way</option>
-                                    <option value="Resolved" ${sos.status==='Resolved'?'selected':''}>Resolved</option>
-                                </select>
-                            `;
-
-                            const popupHtml = `
-                                <div class="popup-content">
-                                    <span class="popup-badge" style="background-color: ${statusColor}">🚨 SOS EMERGENCY</span>
-                                    <h3>${sos.title}</h3>
-                                    <p><strong>Type:</strong> ${sos.emergencyType || 'General'}<br>
-                                       <strong>People:</strong> ${sos.peopleCount || 1}<br>
-                                       <strong>Contact:</strong> ${sos.contact || 'N/A'}</p>
-                                    <p>${sos.description}</p>
-                                    <div class="popup-meta">
-                                        <strong>Status:</strong> ${sos.status}<br>
-                                        <strong>Time:</strong> ${sos.timeReported}
-                                    </div>
-                                    <div style="margin-top:8px;">
-                                        <strong>Update Status:</strong>
-                                        ${statusSelect}
-                                    </div>
-                                    <button class="btn-secondary" onclick="window.routeTo(${sos.lat}, ${sos.lng})" style="margin-top:8px; padding: 8px;">Route Here</button>
-                                </div>
-                            `;
-
-                            marker.bindPopup(popupHtml);
-                            marker.addTo(map);
-                            markers.push(marker);
-                            
-                            // Add red pulsing circle for SOS if not resolved
-                            if (!isResolved) {
-                                const circle = L.circle([sos.lat, sos.lng], {
-                                    color: 'red',
-                                    fillColor: '#B71C1C',
-                                    fillOpacity: 0.5,
-                                    weight: 3,
-                                    radius: 50
-                                }).addTo(map);
-                                markers.push(circle);
-                            }
-                        });
-                    }
+                    const sosList = await NerRekshaData.loadSOS();
+                    sosList.forEach(sos => {
+                        if (!activeFilters.has('sos')) return;
+                        if (sos.status !== 'Resolved') sosCount++;
+                        
+                        const t = SOS_TYPES.find(x => x.id === sos.emergencyType?.toLowerCase()) || SOS_TYPES[4];
+                        const bg = sos.status === 'Resolved' ? '#2F8F5B' : '#C8443A';
+                        const marker = L.marker([sos.lat, sos.lng], { icon: codeIcon(t.code, bg, 30, sos.status!=='Resolved') })
+                            .bindPopup(popupHTML('SOS · '+t.label, sos.description, sos.status+' · '+sos.timeReported));
+                        marker.addTo(map);
+                        markers.push(marker);
+                    });
 
                 } catch (error) {
                     console.error("Error loading markers:", error);
                 }
             }
+            
+            // Update stats
+            const sh = document.getElementById('statHazards');
+            const ss = document.getElementById('statSOS');
+            const sr = document.getElementById('statResources');
+            if (sh) sh.textContent = hazardsCount;
+            if (ss) ss.textContent = sosCount;
+            if (sr) sr.textContent = resourceCount;
         }
 
-        // Handle filters
-        const filterChips = document.querySelectorAll('.filter-chip');
-        filterChips.forEach(chip => {
-            chip.addEventListener('click', (e) => {
-                filterChips.forEach(c => c.classList.remove('active'));
-                e.target.classList.add('active');
-                renderMarkers(e.target.getAttribute('data-filter'));
-            });
-        });
-
-        // GPS integration via our new GPS module
         window.GPS.init();
         window.GPS.subscribe((pos) => {
             if (!pos) return;
             userLocation = [pos.lat, pos.lon];
-            
-            if (userMarker) {
-                map.removeLayer(userMarker);
-            }
-            
+            if (userMarker) map.removeLayer(userMarker);
+            const pinIcon = L.divIcon({
+                className: '',
+                html: `<svg viewBox="0 0 24 24" width="32" height="32" stroke="white" stroke-width="2" fill="#0284C7" stroke-linecap="round" stroke-linejoin="round" style="filter: drop-shadow(0px 4px 6px rgba(0,0,0,0.3));"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>`,
+                iconSize: [32, 32],
+                iconAnchor: [16, 32],
+                popupAnchor: [0, -32]
+            });
             userMarker = L.marker([pos.lat, pos.lon], {
-                icon: createCustomIcon('user'),
+                icon: pinIcon,
                 zIndexOffset: 1000
-            }).addTo(map)
-            .bindPopup('<div class="popup-content"><h3>You are here</h3></div>');
+            }).addTo(map).bindPopup(popupHTML('You are here', '', ''));
 
-            // Optionally pan to user on first fix if not done yet
-            if (!this._hasPannedToUser) {
-                if (pos.lat > 8 && pos.lat < 13 && pos.lon > 74 && pos.lon < 78) {
-                    map.setView([pos.lat, pos.lon], 14);
-                }
+            if (!this._hasPannedToUser && pos.lat > 8 && pos.lat < 13 && pos.lon > 74 && pos.lon < 78) {
+                map.setView([pos.lat, pos.lon], 14);
                 this._hasPannedToUser = true;
-                renderMarkers('all'); // Re-render to sort/calculate relative things if needed
             }
         });
         
-        const btnLocateMe = document.getElementById('btn-locate-me');
+        const btnLocateMe = document.getElementById('locateBtn');
         if (btnLocateMe) {
             btnLocateMe.addEventListener('click', async () => {
                 try {
                     const pos = await window.GPS.getPosition(true);
                     map.setView([pos.lat, pos.lon], 15);
+                    window.showToast('Centered on your location');
                 } catch (e) {
-                    alert("Could not get your location. Please check permissions.");
+                    window.showToast('Could not get your location');
                 }
             });
         }
 
-        window.addEventListener('nerreksha-data-ready', () => {
-            const activeChip = document.querySelector('.filter-chip.active');
-            const activeFilter = activeChip ? activeChip.getAttribute('data-filter') : 'all';
-            renderMarkers(activeFilter);
-        });
-        
-        renderMarkers('all');
+        window.addEventListener('nerreksha-data-ready', renderMarkers);
+        renderMarkers();
     }
 });
