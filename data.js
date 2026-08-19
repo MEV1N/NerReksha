@@ -95,7 +95,12 @@ class OfflineDataManager {
     
     async save(storeName, item, keyPath = 'id') {
         await this.initPromise;
-        if (!item[keyPath]) item[keyPath] = this.generateId();
+        if (!item[keyPath]) {
+            if (storeName === STORES.ROAD_NODES || storeName === STORES.ROAD_EDGES) {
+                throw new Error(`Missing required key "${keyPath}" in ${storeName} - auto generation forbidden for road graph`);
+            }
+            item[keyPath] = this.generateId();
+        }
 
         if (this.useIndexedDB && this.db) {
             return new Promise((resolve, reject) => {
@@ -156,23 +161,67 @@ class OfflineDataManager {
             return new Promise((resolve, reject) => {
                 const transaction = this.db.transaction([storeName], 'readwrite');
                 const store = transaction.objectStore(storeName);
+                const keyPath = store.keyPath || 'id';
+                
+                // Validate items before inserting
+                const seenKeys = new Set();
+                for (let i = 0; i < items.length; i++) {
+                    const item = items[i];
+                    if (!item[keyPath]) {
+                        transaction.abort();
+                        return reject(new Error(`Missing required key "${keyPath}" in ${storeName} at index ${i}:\n${JSON.stringify(item)}`));
+                    }
+                    if (seenKeys.has(item[keyPath])) {
+                        transaction.abort();
+                        return reject(new Error(`Duplicate ID "${item[keyPath]}" found in ${storeName} at index ${i}`));
+                    }
+                    seenKeys.add(item[keyPath]);
+                }
                 
                 let i = 0;
                 function putNext() {
                     if (i < items.length) {
-                        store.put(items[i]).onsuccess = putNext;
-                        i++;
+                        try {
+                            const request = store.put(items[i]);
+                            request.onsuccess = putNext;
+                            request.onerror = (e) => {
+                                transaction.abort();
+                                reject(e.target.error || new Error(`Failed to put item in ${storeName} at index ${i}`));
+                            };
+                            i++;
+                        } catch (err) {
+                            transaction.abort();
+                            reject(err);
+                        }
                     } else {
                         resolve(true);
                     }
                 }
                 putNext();
-                transaction.onerror = (e) => reject(e);
+                
+                transaction.onerror = (e) => reject(e.target.error || new Error(`Transaction error for ${storeName}`));
             });
         } else {
             // LocalStorage Fallback (slow for large data, but works)
+            let keyPath = 'id';
+            if (storeName === STORES.PREFS || storeName === STORES.SETTINGS) {
+                keyPath = 'key';
+            }
+            
+            const seenKeys = new Set();
+            for (let i = 0; i < items.length; i++) {
+                const item = items[i];
+                if (!item[keyPath]) {
+                    return Promise.reject(new Error(`Missing required key "${keyPath}" in ${storeName} at index ${i}:\n${JSON.stringify(item)}`));
+                }
+                if (seenKeys.has(item[keyPath])) {
+                    return Promise.reject(new Error(`Duplicate ID "${item[keyPath]}" found in ${storeName} at index ${i}`));
+                }
+                seenKeys.add(item[keyPath]);
+            }
+            
             for (let item of items) {
-                await this.save(storeName, item);
+                await this.save(storeName, item, keyPath);
             }
             return Promise.resolve(true);
         }

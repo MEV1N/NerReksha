@@ -27,10 +27,42 @@ const OfflineSearch = {
      * @param {String} query 
      * @param {Object} userLocation {lat, lon} optional for distance sorting
      */
-    searchPlaces: function(query, userLocation = null) {
+    searchPlaces: async function(query, userLocation = null) {
+        if (!query) return [];
+
         const normQuery = this._normalize(query);
         if (!normQuery) return [];
 
+        if (navigator.onLine) {
+            try {
+                // Approximate bounding box for Kerala
+                const viewbox = "74.5,12.8,77.5,8.0"; 
+                const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=10&countrycodes=in&viewbox=${viewbox}&bounded=1`;
+                const response = await fetch(url);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.length > 0) {
+                        return data.map(item => ({
+                            place: {
+                                id: `nom_${item.place_id}`,
+                                name: item.display_name.split(',')[0],
+                                type: item.type || 'place',
+                                lat: parseFloat(item.lat),
+                                lon: parseFloat(item.lon),
+                                locality: item.display_name
+                            },
+                            score: 100, // Online exact results are generally high quality
+                            distance: userLocation ? window.GeoDistance.haversine(userLocation.lat, userLocation.lon, parseFloat(item.lat), parseFloat(item.lon)) : null
+                        }));
+                    }
+                }
+            } catch (e) {
+                console.warn("Online search failed, falling back to offline", e);
+            }
+        }
+
+        // Offline Search Fallback (IndexedDB places)
         const tokens = normQuery.split(' ');
 
         const results = this.places.map(place => {

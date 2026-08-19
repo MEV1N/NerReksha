@@ -110,6 +110,7 @@ for (let i = 0; i < GRID_SIZE; i++) {
             const id2 = nodeIds[i][j+1];
             const dist = haversine(bbox[0] + i * latStep, bbox[1] + j * lonStep, bbox[0] + i * latStep, bbox[1] + (j+1) * lonStep);
             edges.push({
+                id: `e_${id1}_${id2}`,
                 from: id1,
                 to: id2,
                 distance: dist,
@@ -124,6 +125,7 @@ for (let i = 0; i < GRID_SIZE; i++) {
             const id2 = nodeIds[i+1][j];
             const dist = haversine(bbox[0] + i * latStep, bbox[1] + j * lonStep, bbox[0] + (i+1) * latStep, bbox[1] + j * lonStep);
             edges.push({
+                id: `e_${id1}_${id2}`,
                 from: id1,
                 to: id2,
                 distance: dist,
@@ -138,6 +140,7 @@ for (let i = 0; i < GRID_SIZE; i++) {
             const id2 = nodeIds[i+1][j+1];
             const dist = haversine(bbox[0] + i * latStep, bbox[1] + j * lonStep, bbox[0] + (i+1) * latStep, bbox[1] + (j+1) * lonStep);
             edges.push({
+                id: `e_${id1}_${id2}`,
                 from: id1,
                 to: id2,
                 distance: dist,

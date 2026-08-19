@@ -32,6 +32,37 @@ const OfflineRegionManager = {
                     
                     const data = await response.json();
                     
+                    // --- Validate Map Data Before Clearing Existing ---
+                    
+                    // Validate nodes
+                    const nodeSet = new Set();
+                    for (let i = 0; i < data.nodes.length; i++) {
+                        const node = data.nodes[i];
+                        if (!node.id) throw new Error(`Invalid road graph: node at index ${i} is missing an ID`);
+                        if (nodeSet.has(node.id)) throw new Error(`Invalid road graph: duplicate node ID "${node.id}"`);
+                        nodeSet.add(node.id);
+                    }
+                    
+                    // Validate edges
+                    const edgeSet = new Set();
+                    for (let i = 0; i < data.edges.length; i++) {
+                        const edge = data.edges[i];
+                        if (!edge.id) throw new Error(`Invalid road graph: edge at index ${i} is missing an ID`);
+                        if (edgeSet.has(edge.id)) throw new Error(`Invalid road graph: duplicate edge ID "${edge.id}"`);
+                        if (!nodeSet.has(edge.from)) throw new Error(`Invalid road graph: edge ${edge.id} references missing node ${edge.from}`);
+                        if (!nodeSet.has(edge.to)) throw new Error(`Invalid road graph: edge ${edge.id} references missing node ${edge.to}`);
+                        edgeSet.add(edge.id);
+                    }
+
+                    // Validate places
+                    const placeSet = new Set();
+                    for (let i = 0; i < data.places.length; i++) {
+                        const place = data.places[i];
+                        if (!place.id) throw new Error(`Invalid region data: place at index ${i} is missing an ID`);
+                        if (placeSet.has(place.id)) throw new Error(`Invalid region data: duplicate place ID "${place.id}"`);
+                        placeSet.add(place.id);
+                    }
+                    
                     // Save to IndexedDB
                     await NerRekshaData.clearStore(STORES.PLACES);
                     await NerRekshaData.saveMany(STORES.PLACES, data.places);
@@ -57,8 +88,8 @@ const OfflineRegionManager = {
                     if (typeof OfflineSearch !== 'undefined') await OfflineSearch.init();
                     
                 } catch (e) {
-                    console.error("Failed to download mock region", e);
-                    alert("Failed to download mock region. Did you run the mock generator script?");
+                    console.error("Failed to download mock region:\n", e);
+                    alert("Failed to download mock region. Check the console for details.\nError: " + e.message);
                 } finally {
                     btnDownloadMock.innerHTML = 'Download Mock Region Data';
                     btnDownloadMock.disabled = false;

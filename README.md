@@ -264,8 +264,15 @@ Stored information includes:
 - SOS Requests
 - Community Resources
 - User Preferences
+- **Dynamically Cached Road Networks (Nodes & Edges)**
 
-This allows the application to continue working even during complete network outages.
+### Automatic Offline Mode & Dynamic Caching
+NerReksha no longer requires manual downloading of offline regions.
+- **Dynamic Caching:** When you view the map while online, the app automatically fetches the raw OpenStreetMap road network for your current viewport via the Overpass API.
+- **Seamless Fallback:** If you lose internet connectivity, the routing engine automatically falls back to our local A* pathfinding algorithm, using the road data previously cached in IndexedDB.
+- **Global Search (Kerala):** The search bar uses Nominatim to find places anywhere in Kerala when online. When offline, it instantly falls back to searching your locally cached places.
+
+This allows the application to continue working dynamically even during unpredictable network outages.
 
 ---
 
@@ -482,8 +489,31 @@ NerReksha/
 │
 ├── tools/
 │   └── osm/               # OSM data pipeline
-└── offline-region.js      # Offline region download manager
+└── overpass-cacher.js     # Background OSM graph fetcher
 ```
+
+---
+
+## 🗺️ Offline Region Data Contract
+
+The mock region generator and any future OSM importer must generate a strictly valid JSON file (`mock_region.json`) following this structure:
+
+```json
+{
+  "bbox": [9.52, 76.90, 9.65, 77.05],
+  "places": [{ "id": "p1", "name": "...", "lat": 9.5, "lon": 76.9 }],
+  "nodes": [{ "id": "n1", "lat": 9.5, "lon": 76.9 }],
+  "edges": [{ "id": "e1", "from": "n1", "to": "n2", "distance": 100 }]
+}
+```
+
+**Validation Rules enforced by the application:**
+1. Every object (place, node, edge) MUST have a stable `id` property.
+2. `id` properties must be strictly unique within their respective stores.
+3. Randomly generating IDs at import time is forbidden to preserve graph relationships.
+4. Every `from` and `to` node referenced in an edge MUST exist in the `nodes` array.
+
+If the file fails validation, the application will abort the import and retain the existing region to prevent data loss.
 
 ---
 

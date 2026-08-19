@@ -31,10 +31,22 @@ const Routing = {
      * @param {Array} activeHazards Array of current hazards
      */
     calculateRoute: async function(origin, destination, activeHazards = []) {
-        if (this.isGraphLoaded) {
-            return this._calculateOfflineRoute(origin, destination, activeHazards);
+        if (navigator.onLine) {
+            try {
+                return await this._calculateOnlineRoute(origin, destination, activeHazards);
+            } catch (e) {
+                console.warn("Online routing failed, falling back to offline", e);
+                if (this.isGraphLoaded) {
+                    return this._calculateOfflineRoute(origin, destination, activeHazards);
+                }
+                throw e;
+            }
         } else {
-            return this._calculateOnlineRoute(origin, destination, activeHazards);
+            if (this.isGraphLoaded) {
+                return this._calculateOfflineRoute(origin, destination, activeHazards);
+            } else {
+                throw new Error("You are offline and no road network is cached for this area.");
+            }
         }
     },
 

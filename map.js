@@ -15,6 +15,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // Use Offline Map strategy
         window.OfflineMap.init(map, defaultLocation);
 
+        if (window.OverpassCacher) {
+            window.OverpassCacher.init(map);
+        }
+
         // Marker Icons Configuration
         const iconConfig = {
             'flood': { color: '#2196F3', icon: '🌊' },
@@ -130,10 +134,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     safetyEl.style.color = routeData.safetyScore > 80 ? 'var(--success-color)' : (routeData.safetyScore > 50 ? 'var(--warning-color)' : 'var(--danger-color)');
 
                     const warningsEl = document.getElementById('route-warnings');
-                    warningsEl.innerHTML = `
-                        <div style="color: #666; margin-bottom: 4px;">Lowest-risk route based on available data. Actual conditions may differ.</div>
-                        ${routeData.maxRisk > 0.5 ? '<div style="color: var(--warning-color);">⚠ Route contains potentially risky segments.</div>' : ''}
-                    `;
+                    if (routeData.safetyScore < 50 || routeData.maxRisk > 0.6) {
+                        warningsEl.innerHTML = '<span style="color:var(--danger-color); font-weight:bold;">⚠️ Route traverses known hazards and may be unsafe!</span>';
+                        alert("Warning: This route traverses known hazards and may be unsafe. Please exercise extreme caution.");
+                    } else if (routeData.hazardsCount > 0 || routeData.maxRisk > 0.5) {
+                        warningsEl.innerHTML = `<span style="color:var(--warning-color);">⚠️ Intersects lower-risk hazard area(s) or risky segments.</span>`;
+                    } else {
+                        warningsEl.innerHTML = '<span style="color:var(--success-color);">✓ No reported hazards on route.</span>';
+                    }
                 }
             } catch (err) {
                 console.error("Routing error:", err);
@@ -164,14 +172,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const searchResultsContainer = document.getElementById('search-results-container');
         const searchResultsList = document.getElementById('search-results-list');
 
-        function performSearch() {
+        async function performSearch() {
             const query = searchInput.value;
             if (!query) {
                 searchResultsContainer.style.display = 'none';
                 return;
             }
 
-            const results = window.OfflineSearch.searchPlaces(query, userLocation ? {lat: userLocation[0], lon: userLocation[1]} : null);
+            const results = await window.OfflineSearch.searchPlaces(query, userLocation ? {lat: userLocation[0], lon: userLocation[1]} : null);
             
             searchResultsList.innerHTML = '';
             if (results.length === 0) {
