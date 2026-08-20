@@ -371,6 +371,7 @@ class OfflineDataManager {
 
 // Instantiate globally
 const NerRekshaData = new OfflineDataManager();
+window.NerRekshaData = NerRekshaData;
 
 // Initialize
 NerRekshaData.initPromise.then(() => {

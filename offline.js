@@ -3,15 +3,16 @@
  */
 
 document.addEventListener('DOMContentLoaded', () => {
-    const statusIndicator = document.getElementById('status-indicator');
+    const connPill = document.getElementById('connPill');
 
     function updateOnlineStatus() {
+        if (!connPill) return;
         if (navigator.onLine) {
-            statusIndicator.textContent = 'Online';
-            statusIndicator.className = 'status online';
+            connPill.dataset.state = 'online';
+            if (window.showToast) window.showToast('Back online. Data syncing available.');
         } else {
-            statusIndicator.textContent = 'Offline';
-            statusIndicator.className = 'status offline';
+            connPill.dataset.state = 'offline';
+            if (window.showToast) window.showToast('You are offline. Basic features will still work.');
             console.log("You are currently offline. Basic features will still work.");
         }
     }
