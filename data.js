@@ -178,27 +178,20 @@ class OfflineDataManager {
                     seenKeys.add(item[keyPath]);
                 }
                 
-                let i = 0;
-                function putNext() {
-                    if (i < items.length) {
-                        try {
-                            const request = store.put(items[i]);
-                            request.onsuccess = putNext;
-                            request.onerror = (e) => {
-                                transaction.abort();
-                                reject(e.target.error || new Error(`Failed to put item in ${storeName} at index ${i}`));
-                            };
-                            i++;
-                        } catch (err) {
-                            transaction.abort();
-                            reject(err);
-                        }
-                    } else {
-                        resolve(true);
+                // Parallelize the put requests within the single transaction
+                for (let i = 0; i < items.length; i++) {
+                    try {
+                        const request = store.put(items[i]);
+                        request.onerror = (e) => {
+                            reject(e.target.error || new Error(`Failed to put item in ${storeName} at index ${i}`));
+                        };
+                    } catch (err) {
+                        reject(err);
+                        break;
                     }
                 }
-                putNext();
                 
+                transaction.oncomplete = () => resolve(true);
                 transaction.onerror = (e) => reject(e.target.error || new Error(`Transaction error for ${storeName}`));
             });
         } else {

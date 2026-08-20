@@ -44,7 +44,7 @@ const OverpassCacher = {
         const maxLon = Math.max(origin[1], destination[1]) + pad;
         
         const bboxStr = `${minLat},${minLon},${maxLat},${maxLon}`;
-        await this.fetchBbox(bboxStr);
+        return await this.fetchBbox(bboxStr);
     },
 
     fetchBbox: async function(bboxStr) {
@@ -109,9 +109,12 @@ const OverpassCacher = {
                 await window.NerRekshaData.saveMany(STORES.ROAD_EDGES, uniqueEdges).catch(e => console.warn(e));
                 console.log(`Cached ${uniqueNodes.length} nodes and ${uniqueEdges.length} edges.`);
                 if (window.Routing) await window.Routing.init(); // Reloads graph
+                return true;
             }
+            return false;
         } catch (err) {
             console.error("Failed to cache road network:", err);
+            return false;
         } finally {
             this.isFetching = false;
         }

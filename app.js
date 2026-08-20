@@ -371,16 +371,26 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
         
+        let mapSuccess = true;
         if (window.OverpassCacher && navigator.onLine) {
             window.showToast('Downloading road network for offline demo...');
             try {
-                await window.OverpassCacher.ensureCoverage([centerLat, centerLng], [centerLat, centerLng]);
-            } catch(e) { console.error("Demo cache error", e); }
+                const success = await window.OverpassCacher.ensureCoverage([centerLat, centerLng], [centerLat, centerLng]);
+                if (success === false) mapSuccess = false;
+            } catch(e) { 
+                console.error("Demo cache error", e); 
+                mapSuccess = false;
+            }
         }
 
         await NerRekshaData.saveBulkData(hazards, sosList, resources);
         window.dispatchEvent(new Event('nerreksha-data-ready'));
-        window.showToast('Demo data & map loaded');
+        
+        if (mapSuccess) {
+            window.showToast('Demo data & map loaded');
+        } else {
+            window.showToast('Demo data loaded, but map download failed (Offline routing limited).');
+        }
     }
 
     if (demoBtn) demoBtn.addEventListener('click', handleLoadDemo);
